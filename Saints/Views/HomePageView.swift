@@ -4,49 +4,46 @@ import UIKit
 struct WallpaperView: View {
     @EnvironmentObject var settings: BrowserSettings
     var isPrivate: Bool = false
-
-    static var photoURL: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Saints/wallpaper.jpg")
-    }
-
-    private static var cached: (stamp: Double, image: UIImage)?
-
-    static func loadPhoto(stamp: Double) -> UIImage? {
-        if let cached, cached.stamp == stamp { return cached.image }
-        guard let image = UIImage(contentsOfFile: photoURL.path) else { return nil }
-        cached = (stamp, image)
-        return image
-    }
+    /// Small previews skip the blur so thumbnails stay crisp and cheap.
+    var preview: Bool = false
 
     var body: some View {
-        ZStack {
-            if isPrivate {
-                LinearGradient(colors: [Color(hex: "#1E1530"), Color(hex: "#3B2667")], startPoint: .top, endPoint: .bottom)
-            } else {
-                switch settings.data.wallpaper {
-                case .none:
-                    settings.data.theme == .black ? Color.black : Color(uiColor: .systemBackground)
-                case .solid:
-                    settings.solidWallpaperBinding.wrappedValue
-                case .photo:
-                    if let image = Self.loadPhoto(stamp: settings.data.wallpaperStamp) {
-                        GeometryReader { geo in
-                            Image(uiImage: image).resizable().scaledToFill()
-                                .frame(width: geo.size.width, height: geo.size.height).clipped()
-                        }
-                    } else {
-                        Color(uiColor: .systemBackground)
+        GeometryReader { geo in
+            ZStack {
+                if isPrivate {
+                    LinearGradient(colors: [Color(hex: "#1E1530"), Color(hex: "#3B2667")], startPoint: .top, endPoint: .bottom)
+                } else {
+                    base(size: geo.size)
+                        .blur(radius: preview ? settings.data.wallpaperBlur / 6 : settings.data.wallpaperBlur)
+                        .scaleEffect(settings.data.wallpaperBlur > 0 ? 1.08 : 1)   // hide blurred edges
+                    if settings.data.wallpaper != .none && settings.data.wallpaperDim > 0 {
+                        Color.black.opacity(settings.data.wallpaperDim)
                     }
-                default:
-                    LinearGradient(colors: settings.data.wallpaper.gradient ?? [.clear], startPoint: .topLeading, endPoint: .bottomTrailing)
-                }
-                if settings.data.wallpaper != .none {
-                    Color.black.opacity(settings.data.wallpaperDim)
                 }
             }
+            .frame(width: geo.size.width, height: geo.size.height)
+            .clipped()
         }
         .ignoresSafeArea()
+    }
+
+    @ViewBuilder private func base(size: CGSize) -> some View {
+        switch settings.data.wallpaper {
+        case .none:
+            settings.data.theme == .black ? Color.black : Color(uiColor: .systemBackground)
+        case .solid:
+            Color(hex: settings.data.wallpaperSolidHex)
+        case .photo:
+            if let image = WallpaperStore.shared.image(settings.data.wallpaperPhotoID) {
+                Image(uiImage: image).resizable().scaledToFill()
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
+            } else {
+                Color(uiColor: .systemBackground)
+            }
+        default:
+            LinearGradient(colors: settings.data.wallpaper.gradient ?? [.clear], startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
     }
 }
 
@@ -65,8 +62,24 @@ struct HomePageView: View {
     @FocusState private var fieldFocused: Bool
 
     private var onWallpaper: Bool { tab.isPrivate || settings.data.wallpaper != .none }
-    private var ink: Color { onWallpaper ? .white : .primary }
-    private var subInk: Color { onWallpaper ? .white.opacity(0.75) : .secondary }
+    /// White text on dark wallpapers, dark text on light ones, unless the user picked a style.
+    private var lightInk: Bool {
+        if tab.isPrivate { return true }
+        switch settings.data.homeTextStyle {
+        case .light: return true
+        case .dark: return false
+        case .auto:
+            let w = settings.data.wallpaper
+            if w == .none { return false }
+            if w == .solid { return Color(hex: settings.data.wallpaperSolidHex).isLightColor == false }
+            return !w.isLight
+        }
+    }
+    private var ink: Color {
+        if settings.data.homeTextStyle == .auto && settings.data.wallpaper == .none && !tab.isPrivate { return .primary }
+        return lightInk ? .white : .black
+    }
+    private var subInk: Color { ink.opacity(0.75) }
 
     private var greeting: String {
         if !settings.data.greeting.isEmpty { return settings.data.greeting }
@@ -98,7 +111,7 @@ struct HomePageView: View {
                         VStack(spacing: 28) {
                             if tab.isPrivate { privateNote }
                             if settings.data.showFavorites && !library.favorites.isEmpty { favorites }
-                            if !tab.isPrivate && !recent.isEmpty { recentSection }
+                            if settings.data.showRecent && !tab.isPrivate && !recent.isEmpty { recentSection }
                             if settings.data.showPrivacyStats && !tab.isPrivate { privacyLine }
                         }
                         .padding(.top, 30)
@@ -128,9 +141,11 @@ struct HomePageView: View {
             if settings.data.showLogo {
                 SaintsLogo(size: 40).foregroundStyle(ink)
             }
-            Text(greeting)
-                .font(.headline)
-                .foregroundStyle(subInk)
+            if settings.data.showGreeting {
+                Text(greeting)
+                    .font(.headline)
+                    .foregroundStyle(subInk)
+            }
         }
     }
 
@@ -173,7 +188,7 @@ struct HomePageView: View {
         }
     }
 
-    private var fieldRadius: CGFloat { settings.data.barCornerRadius + 6 }
+    private var fieldRadius: CGFloat { min(26, settings.data.searchFieldRoundness) }
 
     @ViewBuilder private var fieldBackground: some View {
         if onWallpaper {
@@ -302,7 +317,7 @@ struct HomePageView: View {
                         if let url = URL(string: b.url) { settings.haptic(); tab.load(url) }
                     } label: {
                         VStack(spacing: 7) {
-                            FaviconView(urlString: b.url, size: 60)
+                            FaviconView(urlString: b.url, size: 60, cornerFraction: settings.data.favoriteShape.cornerFraction)
                                 .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
                             Text(b.title)
                                 .font(.caption)

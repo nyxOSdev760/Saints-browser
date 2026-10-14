@@ -61,7 +61,8 @@ struct AddressBar: View {
                                         .truncationMode(.middle)
                                         .foregroundStyle(tab.url == nil ? Color.secondary : Color.primary)
                                 }
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity,
+                                       alignment: settings.data.centerAddress ? .center : .leading)
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
@@ -210,17 +211,30 @@ struct BrowserToolbar: View {
                 }
             }
         }
-        .font(.system(size: 19, weight: .regular))
-        .frame(height: settings.data.compactBars ? 38 : 44)
+        .font(.system(size: settings.data.toolbarLabels ? 17 : 19, weight: settings.data.toolbarIconWeight.weight))
+        .frame(height: (settings.data.compactBars ? 38 : 44) + (settings.data.toolbarLabels ? 10 : 0))
+    }
+
+    @ViewBuilder private func labeled<Icon: View>(_ icon: Icon, _ title: String) -> some View {
+        if settings.data.toolbarLabels {
+            VStack(spacing: 2) {
+                icon
+                Text(title).font(.system(size: 10, weight: .medium)).lineLimit(1)
+            }
+            .frame(width: 60, height: 48)
+            .contentShape(Rectangle())
+        } else {
+            icon
+                .frame(width: 44, height: 40)
+                .contentShape(Rectangle())
+        }
     }
 
     private func icon(for item: ToolbarAction) -> some View {
         var symbol = item.symbol
         if item == .bookmarks && library.isBookmarked(tab.url) { symbol = "book.fill" }
         if item == .desktop && tab.desktopMode { symbol = "iphone" }
-        return Image(systemName: symbol)
-            .frame(width: 44, height: 40)
-            .contentShape(Rectangle())
+        return labeled(Image(systemName: symbol), item.shortTitle)
     }
 
     private func isDisabled(_ item: ToolbarAction) -> Bool {
@@ -234,15 +248,15 @@ struct BrowserToolbar: View {
 
     private var tabsButton: some View {
         Button { settings.haptic(); perform(.tabs) } label: {
-            ZStack {
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .strokeBorder(lineWidth: 1.8)
-                    .frame(width: 22, height: 22)
-                Text("\(tabs.tabs(isPrivate: tab.isPrivate).count)")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-            }
-            .frame(width: 44, height: 40)
-            .contentShape(Rectangle())
+            labeled(
+                ZStack {
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .strokeBorder(lineWidth: 1.8)
+                        .frame(width: 22, height: 22)
+                    Text("\(tabs.tabs(isPrivate: tab.isPrivate).count)")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                },
+                "Tabs")
         }
         .frame(maxWidth: .infinity)
         .contextMenu {

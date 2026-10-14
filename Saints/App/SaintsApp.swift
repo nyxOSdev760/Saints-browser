@@ -74,6 +74,7 @@ enum AppBootstrap {
             || old.blockCookieBanners != new.blockCookieBanners
         let scriptsChanged = old.globalPrivacyControl != new.globalPrivacyControl
             || old.extensionsEnabled != new.extensionsEnabled
+            || old.darkWebPages != new.darkWebPages
         let tabsChanged = old.webInspector != new.webInspector || old.customUserAgent != new.customUserAgent
             || old.blockPopups != new.blockPopups
 
@@ -87,6 +88,10 @@ enum AppBootstrap {
             }
         } else if scriptsChanged || tabsChanged {
             TabManager.shared.refreshUserContent()
+        }
+        if old.darkWebPages != new.darkWebPages || (new.darkWebPages == .followApp && old.theme != new.theme) {
+            // Re-render the current page so the change is visible immediately.
+            TabManager.shared.selectedTab.flatMap { $0.showsHome ? nil : $0 }?.webView.reload()
         }
         if old.defaultZoom != new.defaultZoom {
             TabManager.shared.allTabs.forEach { $0.setZoom(new.defaultZoom) }

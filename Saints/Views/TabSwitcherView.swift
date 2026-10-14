@@ -1,24 +1,35 @@
 import SwiftUI
 
+/// Safari-style tab overview: portrait thumbnails with titles underneath, a tab-group menu in the
+/// bottom bar (Tabs / Private) between "+" and "Done".
 struct TabSwitcherView: View {
     @Binding var isPresented: Bool
     @State var showingPrivate: Bool
     @State private var search = ""
+    @State private var confirmCloseAll = false
 
     @EnvironmentObject var tabs: TabManager
     @EnvironmentObject var settings: BrowserSettings
+    @EnvironmentObject var library: LibraryStore
+
+    private var allInGroup: [BrowserTab] { tabs.tabs(isPrivate: showingPrivate) }
 
     private var list: [BrowserTab] {
-        let all = tabs.tabs(isPrivate: showingPrivate)
-        guard !search.isEmpty else { return all }
+        guard !search.isEmpty else { return allInGroup }
         let q = search.lowercased()
-        return all.filter { $0.displayTitle.lowercased().contains(q) || ($0.url?.absoluteString.lowercased().contains(q) ?? false) }
+        return allInGroup.filter {
+            $0.displayTitle.lowercased().contains(q) || ($0.url?.absoluteString.lowercased().contains(q) ?? false)
+        }
+    }
+
+    private var background: Color {
+        if showingPrivate { return Color(hex: "#1C1C1E") }
+        return settings.data.theme == .black ? .black : Color(uiColor: .systemGroupedBackground)
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-            if list.isEmpty {
+            if allInGroup.isEmpty {
                 emptyState
             } else if settings.data.tabLayout == .grid {
                 grid
@@ -27,57 +38,78 @@ struct TabSwitcherView: View {
             }
             bottomBar
         }
-        .background(
-            (showingPrivate ? Color(hex: "#1E1530") : (settings.data.theme == .black ? Color.black : Color(uiColor: .systemGroupedBackground)))
-                .ignoresSafeArea()
-        )
+        .background(background.ignoresSafeArea())
         .if(showingPrivate) { $0.environment(\.colorScheme, .dark) }
+        .confirmationDialog("Close all \(allInGroup.count) \(showingPrivate ? "private " : "")tabs?",
+                            isPresented: $confirmCloseAll, titleVisibility: .visible) {
+            Button("Close \(allInGroup.count) Tabs", role: .destructive) {
+                tabs.closeAll(isPrivate: showingPrivate)
+                if !showingPrivate { isPresented = false }
+            }
+        }
     }
 
-    private var header: some View {
-        VStack(spacing: 10) {
-            Picker("", selection: $showingPrivate) {
-                Text("Tabs (\(tabs.normalTabs.count))").tag(false)
-                Text("Private (\(tabs.privateTabs.count))").tag(true)
+    // MARK: Search
+
+    private var searchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField(showingPrivate ? "Search Private Tabs" : "Search Tabs", text: $search)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            if !search.isEmpty {
+                Button { search = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                    .buttonStyle(.plain)
             }
-            .pickerStyle(.segmented)
-            HStack {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("Search tabs", text: $search)
-            }
-            .padding(9)
-            .background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 10)
-        .padding(.bottom, 6)
+        .padding(.horizontal, 10)
+        .frame(height: 36)
+        .background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
+
+    // MARK: Grid
 
     private var grid: some View {
-        let columns = Array(repeating: GridItem(.flexible(), spacing: 14), count: max(1, min(settings.data.tabGridColumns, 4)))
+        let count = max(1, min(settings.data.tabGridColumns, 4))
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 18), count: count)
         return ScrollViewReader { proxy in
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 16) {
-                    ForEach(list) { tab in
-                        TabCard(tab: tab, selected: tab === tabs.selectedTab) {
-                            choose(tab)
-                        } onClose: {
-                            withAnimation(.spring(response: 0.3)) { tabs.close(tab) }
+                VStack(spacing: 16) {
+                    searchField
+                    LazyVGrid(columns: columns, spacing: 22) {
+                        ForEach(list) { tab in
+                            SafariTabCard(tab: tab, selected: tab === tabs.selectedTab,
+                                          onTap: { choose(tab) },
+                                          onClose: { close(tab) },
+                                          onCloseOthers: { closeOthers(than: tab) })
+                                .id(tab.id)
+                                .transition(.scale(scale: 0.8).combined(with: .opacity))
                         }
-                        .id(tab.id)
                     }
                 }
-                .padding(16)
+                .padding(.horizontal, 18)
+                .padding(.top, 12)
+                .padding(.bottom, 20)
+                .animation(.spring(response: 0.32, dampingFraction: 0.85), value: list.map(\.id))
             }
-            .onAppear { if let id = tabs.selectedTab?.id { proxy.scrollTo(id, anchor: .center) } }
+            .scrollDismissesKeyboard(.immediately)
+            .onAppear {
+                if let id = tabs.selectedTab?.id { proxy.scrollTo(id, anchor: .center) }
+            }
         }
     }
+
+    // MARK: List
 
     private var listView: some View {
         List {
+            Section {
+                searchField
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+            }
             ForEach(list) { tab in
                 HStack(spacing: 12) {
-                    // Borderless buttons so a List row can hold two independent tap targets.
                     Button { choose(tab) } label: {
                         HStack(spacing: 12) {
                             if let url = tab.url {
@@ -87,7 +119,7 @@ struct TabSwitcherView: View {
                             }
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(tab.displayTitle).lineLimit(1).foregroundStyle(.primary)
-                                Text(tab.url?.host ?? "Home").font(.caption).foregroundStyle(.secondary)
+                                Text(tab.url?.host ?? "Start Page").font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
                             if tab === tabs.selectedTab {
@@ -97,10 +129,7 @@ struct TabSwitcherView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.borderless)
-                    Button {
-                        settings.haptic()
-                        withAnimation { tabs.close(tab) }
-                    } label: {
+                    Button { close(tab) } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.title3)
                             .foregroundStyle(.secondary)
@@ -111,7 +140,7 @@ struct TabSwitcherView: View {
                     .accessibilityLabel("Close tab")
                 }
                 .swipeActions {
-                    Button(role: .destructive) { tabs.close(tab) } label: { Label("Close", systemImage: "xmark") }
+                    Button(role: .destructive) { close(tab) } label: { Label("Close", systemImage: "xmark") }
                 }
             }
         }
@@ -119,52 +148,100 @@ struct TabSwitcherView: View {
         .scrollContentBackground(.hidden)
     }
 
+    // MARK: Empty
+
     private var emptyState: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             Spacer()
-            Image(systemName: showingPrivate ? "eyeglasses" : "square.on.square").font(.system(size: 44)).foregroundStyle(.secondary)
-            Text(showingPrivate ? "No private tabs" : "No tabs").font(.headline)
-            Text(showingPrivate ? "Private tabs keep no history, cookies or cache after you close them." : "Tap + to open a new tab.")
-                .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            if showingPrivate {
+                Text("Private Browsing").font(.title2.weight(.bold))
+                Text("Saints won't remember the pages you visit, your search history or AutoFill information after you close a private tab.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+            } else {
+                Image(systemName: "square.on.square").font(.system(size: 40)).foregroundStyle(.secondary)
+                Text("No Open Tabs").font(.title3.weight(.semibold))
+            }
             Spacer()
         }
-        .padding()
         .frame(maxWidth: .infinity)
+    }
+
+    // MARK: Bottom bar
+
+    private var groupTitle: String {
+        if showingPrivate {
+            return tabs.privateTabs.isEmpty ? "Private" : "\(tabs.privateTabs.count) Private Tab\(tabs.privateTabs.count == 1 ? "" : "s")"
+        }
+        return "\(tabs.normalTabs.count) Tab\(tabs.normalTabs.count == 1 ? "" : "s")"
     }
 
     private var bottomBar: some View {
         HStack {
-            Menu {
-                Button(role: .destructive) {
-                    tabs.closeAll(isPrivate: showingPrivate)
-                    isPresented = false
-                } label: { Label("Close All \(showingPrivate ? "Private " : "")Tabs", systemImage: "xmark.square") }
-            } label: {
-                Text("Close All").frame(minWidth: 80, alignment: .leading)
-            }
-            .disabled(list.isEmpty)
-            Spacer()
             Button {
                 settings.haptic()
                 tabs.newTab(isPrivate: showingPrivate)
                 isPresented = false
             } label: {
-                Image(systemName: "plus").font(.title2.weight(.medium)).frame(width: 52, height: 40)
+                Image(systemName: "plus").font(.title2.weight(.regular)).frame(width: 44, height: 44)
             }
+            .frame(minWidth: 70, alignment: .leading)
+
             Spacer()
-            Button("Done") {
-                if let selected = tabs.selectedTab, selected.isPrivate != showingPrivate,
-                   let first = tabs.tabs(isPrivate: showingPrivate).last {
-                    tabs.select(first)
+
+            Menu {
+                Section {
+                    Button { switchGroup(private: false) } label: {
+                        Label("\(tabs.normalTabs.count) Tab\(tabs.normalTabs.count == 1 ? "" : "s")",
+                              systemImage: showingPrivate ? "square.on.square" : "checkmark")
+                    }
+                    Button { switchGroup(private: true) } label: {
+                        Label("Private", systemImage: showingPrivate ? "checkmark" : "hand.raised")
+                    }
                 }
-                isPresented = false
+                Section {
+                    Picker("Layout", selection: $settings.data.tabLayout) {
+                        Label("Grid", systemImage: "square.grid.2x2").tag(TabLayout.grid)
+                        Label("List", systemImage: "list.bullet").tag(TabLayout.list)
+                    }
+                }
+                if !allInGroup.isEmpty {
+                    Section {
+                        Button(role: .destructive) { confirmCloseAll = true } label: {
+                            Label("Close All \(allInGroup.count) Tabs", systemImage: "xmark")
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(groupTitle).font(.body.weight(.semibold))
+                    Image(systemName: "chevron.down").font(.caption.weight(.bold))
+                }
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 12)
+                .frame(height: 36)
+                .contentShape(Rectangle())
             }
-            .font(.body.weight(.semibold))
-            .frame(minWidth: 80, alignment: .trailing)
+
+            Spacer()
+
+            Button("Done") { finish() }
+                .font(.body.weight(.semibold))
+                .frame(minWidth: 70, alignment: .trailing)
         }
-        .padding(.horizontal, 20)
-        .frame(height: 50)
+        .padding(.horizontal, 14)
+        .frame(height: 52)
         .background(.bar)
+    }
+
+    // MARK: Actions
+
+    private func switchGroup(private isPrivate: Bool) {
+        settings.haptic()
+        withAnimation(.easeInOut(duration: 0.2)) { showingPrivate = isPrivate }
+        search = ""
     }
 
     private func choose(_ tab: BrowserTab) {
@@ -172,100 +249,161 @@ struct TabSwitcherView: View {
         tabs.select(tab)
         isPresented = false
     }
+
+    private func close(_ tab: BrowserTab) {
+        settings.haptic()
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { tabs.close(tab) }
+    }
+
+    private func closeOthers(than keep: BrowserTab) {
+        for tab in allInGroup where tab !== keep { tabs.close(tab) }
+    }
+
+    private func finish() {
+        if let selected = tabs.selectedTab, selected.isPrivate != showingPrivate {
+            if let last = allInGroup.last {
+                tabs.select(last)
+            } else if showingPrivate {
+                tabs.newTab(isPrivate: true)
+            }
+        }
+        isPresented = false
+    }
 }
 
-private struct TabCard: View {
+/// A Safari-style tab thumbnail: page preview with a close button, title underneath.
+private struct SafariTabCard: View {
     @ObservedObject var tab: BrowserTab
     let selected: Bool
     var onTap: () -> Void
     var onClose: () -> Void
+    var onCloseOthers: () -> Void
+
     @EnvironmentObject var settings: BrowserSettings
+    @EnvironmentObject var library: LibraryStore
     @State private var dragX: CGFloat = 0
 
+    private let radius: CGFloat = 14
+
     var body: some View {
-        // The close button is a sibling of the card button (not nested in it), so taps on ✕ always close.
-        Button(action: onTap) { card }
-            .buttonStyle(CardPressStyle())
-            .overlay(alignment: .topTrailing) {
-                Button {
-                    settings.haptic()
-                    onClose()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.primary)
-                        .frame(width: 24, height: 24)
-                        .background(.regularMaterial, in: Circle())
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
+        VStack(spacing: 8) {
+            Button(action: onTap) { thumbnail }
+                .buttonStyle(ThumbPressStyle())
+                // Sibling of the thumbnail button, never nested in it, so the ✕ always closes.
+                .overlay(alignment: .topTrailing) { closeButton }
+                .contextMenu { menu }
+
+            HStack(spacing: 5) {
+                if let url = tab.url {
+                    FaviconView(urlString: url.absoluteString, size: 14, cornerFraction: 0.25)
+                } else {
+                    Image(systemName: tab.isPrivate ? "hand.raised.fill" : "star.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Close tab")
+                Text(tab.showsHome ? "Start Page" : tab.displayTitle)
+                    .font(.caption.weight(.medium))
+                    .lineLimit(1)
             }
-            .offset(x: dragX)
-            .opacity(1 - Double(min(abs(dragX), 250) / 300))
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 30)
-                    .onChanged { v in
-                        if abs(v.translation.width) > abs(v.translation.height) * 1.5 { dragX = v.translation.width }
-                    }
-                    .onEnded { v in
-                        if abs(dragX) > 110 {
-                            withAnimation(.easeOut(duration: 0.18)) { dragX = v.translation.width > 0 ? 500 : -500 }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { onClose() }
-                        } else {
-                            withAnimation(.spring()) { dragX = 0 }
-                        }
-                    }
-            )
-            .onAppear { if !tab.showsHome && tab.snapshot == nil { tab.captureSnapshot() } }
+            .padding(.horizontal, 4)
+            .frame(maxWidth: .infinity)
+            .onTapGesture(perform: onTap)
+        }
+        .offset(x: dragX)
+        .opacity(1 - Double(min(abs(dragX), 250) / 320))
+        .simultaneousGesture(swipeToClose)
+        .onAppear { if !tab.showsHome && tab.snapshot == nil { tab.captureSnapshot() } }
     }
 
-    private var card: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 6) {
-                if let url = tab.url {
-                    FaviconView(urlString: url.absoluteString, size: 16)
-                } else {
-                    Image(systemName: tab.isPrivate ? "eyeglasses" : "house.fill").font(.caption2).foregroundStyle(.secondary)
-                }
-                Text(tab.displayTitle).font(.caption.weight(.semibold)).lineLimit(1)
-                Spacer(minLength: 34)   // room for the close button
-            }
-            .padding(.leading, 10)
-            .frame(height: 36)
+    private var thumbnail: some View {
+        Color.clear
+            .aspectRatio(0.72, contentMode: .fit)
+            .overlay(alignment: .top) { preview }
+            .background(Color(uiColor: .secondarySystemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
+            )
+            .padding(selected ? 3 : 0)
+            .overlay(
+                RoundedRectangle(cornerRadius: radius + 3, style: .continuous)
+                    .strokeBorder(selected ? settings.accent : Color.clear, lineWidth: 3)
+            )
+            .shadow(color: .black.opacity(0.14), radius: 10, y: 4)
+            .contentShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+    }
 
+    @ViewBuilder private var preview: some View {
+        if tab.showsHome {
             ZStack {
-                if tab.showsHome {
-                    WallpaperView(isPrivate: tab.isPrivate)
-                    SaintsLogo(size: 20).foregroundStyle(settings.data.wallpaper == .none && !tab.isPrivate ? Color.primary : Color.white)
-                } else if let image = tab.snapshot {
-                    Image(uiImage: image).resizable().scaledToFill()
-                } else {
-                    Color(uiColor: .secondarySystemBackground)
-                    Image(systemName: "globe").font(.largeTitle).foregroundStyle(.secondary)
+                WallpaperView(isPrivate: tab.isPrivate, preview: true)
+                VStack(spacing: 10) {
+                    SaintsLogo(size: 18)
+                        .foregroundStyle(settings.data.wallpaper == .none && !tab.isPrivate ? Color.primary : Color.white)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(.regularMaterial)
+                        .frame(height: 16)
+                        .padding(.horizontal, 16)
                 }
             }
-            .frame(height: 190)
-            .frame(maxWidth: .infinity)
-            .clipped()
-            .allowsHitTesting(false)
+        } else if let image = tab.snapshot {
+            Image(uiImage: image).resizable().scaledToFill()
+        } else {
+            Image(systemName: "globe").font(.largeTitle).foregroundStyle(.tertiary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(selected ? settings.accent : Color.clear, lineWidth: 3)
-        )
-        .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
-        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private var closeButton: some View {
+        Button(action: onClose) {
+            Image(systemName: "xmark")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 24, height: 24)
+                .background(Circle().fill(Color.black.opacity(0.45)))
+                .background(Circle().fill(.ultraThinMaterial))
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(selected ? 3 : 0)
+        .accessibilityLabel("Close tab")
+    }
+
+    @ViewBuilder private var menu: some View {
+        if let url = tab.url {
+            Button { UIPasteboard.general.url = url } label: { Label("Copy Link", systemImage: "doc.on.doc") }
+            Button { library.toggleBookmark(title: tab.title, url: url) } label: {
+                Label(library.isBookmarked(url) ? "Remove Bookmark" : "Add Bookmark", systemImage: "book")
+            }
+            Button { Share.present([url]) } label: { Label("Share", systemImage: "square.and.arrow.up") }
+        }
+        Divider()
+        Button(role: .destructive, action: onCloseOthers) { Label("Close Other Tabs", systemImage: "xmark.square") }
+        Button(role: .destructive, action: onClose) { Label("Close Tab", systemImage: "xmark") }
+    }
+
+    private var swipeToClose: some Gesture {
+        DragGesture(minimumDistance: 30)
+            .onChanged { v in
+                if abs(v.translation.width) > abs(v.translation.height) * 1.5 { dragX = v.translation.width }
+            }
+            .onEnded { v in
+                if abs(dragX) > 100 {
+                    withAnimation(.easeOut(duration: 0.18)) { dragX = v.translation.width > 0 ? 500 : -500 }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: onClose)
+                } else {
+                    withAnimation(.spring()) { dragX = 0 }
+                }
+            }
     }
 }
 
-private struct CardPressStyle: ButtonStyle {
+private struct ThumbPressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }

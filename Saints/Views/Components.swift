@@ -49,6 +49,7 @@ struct SaintsLogo: View {
 struct FaviconView: View {
     let urlString: String
     var size: CGFloat = 52
+    var cornerFraction: CGFloat = 0.28
     @EnvironmentObject var settings: BrowserSettings
 
     private var host: String { URL(string: urlString)?.host ?? urlString }
@@ -59,7 +60,7 @@ struct FaviconView: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
+            RoundedRectangle(cornerRadius: size * cornerFraction, style: .continuous)
                 .fill(.thinMaterial)
             Text(letter)
                 .font(.system(size: size * 0.42, weight: .semibold, design: .rounded))
@@ -70,7 +71,7 @@ struct FaviconView: View {
                         image.resizable().interpolation(.high).scaledToFit()
                             .frame(width: size * 0.55, height: size * 0.55)
                             .frame(width: size, height: size)
-                            .background(RoundedRectangle(cornerRadius: size * 0.28, style: .continuous).fill(.regularMaterial))
+                            .background(RoundedRectangle(cornerRadius: size * cornerFraction, style: .continuous).fill(.regularMaterial))
                     }
                 }
             }

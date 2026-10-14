@@ -11,6 +11,7 @@ struct MenuSheet: View {
     @EnvironmentObject var extensions: ExtensionManager
     @EnvironmentObject var tabs: TabManager
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 4)
 
@@ -21,6 +22,7 @@ struct MenuSheet: View {
                     if let url = tab.url {
                         pageHeader(url)
                     }
+                    quickToggles
                     LazyVGrid(columns: columns, spacing: 10) {
                         tile("New Tab", "plus.square.on.square") { tabs.newTab(isPrivate: false); dismiss() }
                         tile("Private Tab", "eyeglasses") { tabs.newTab(isPrivate: true); dismiss() }
@@ -104,6 +106,41 @@ struct MenuSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+
+    /// Control-Center-style quick toggles.
+    private var quickToggles: some View {
+        let dark = settings.isDark(system: colorScheme)
+        let darkPages = settings.data.darkWebPages != .off
+        return HStack(spacing: 10) {
+            toggleTile(dark ? "Dark" : "Light", dark ? "moon.fill" : "sun.max.fill", on: dark) {
+                withAnimation(.easeInOut(duration: 0.25)) { settings.toggleDarkMode(system: colorScheme) }
+            }
+            toggleTile("Dark Pages", "doc.richtext.fill", on: darkPages) {
+                settings.data.darkWebPages = darkPages ? .off : .followApp
+                settings.haptic(.medium)
+            }
+            toggleTile("Wallpaper", "photo.on.rectangle", on: false) { open(.wallpapers) }
+            toggleTile("Customize", "paintbrush.fill", on: false) { open(.customize) }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private func toggleTile(_ title: String, _ symbol: String, on: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 7) {
+                Image(systemName: symbol)
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(on ? Color.white : settings.accent)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(on ? settings.accent : settings.accent.opacity(0.14)))
+                Text(title).font(.caption2.weight(.medium)).lineLimit(1).minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 
     private func pageHeader(_ url: URL) -> some View {

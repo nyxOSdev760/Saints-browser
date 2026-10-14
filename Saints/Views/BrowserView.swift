@@ -3,7 +3,7 @@ import WebKit
 import UniformTypeIdentifiers
 
 enum BrowserSheet: Identifiable {
-    case menu, settings, library, extensions, downloads
+    case menu, settings, library, extensions, downloads, wallpapers, customize
     case install(PendingInstall)
 
     var id: String {
@@ -13,6 +13,8 @@ enum BrowserSheet: Identifiable {
         case .library: return "library"
         case .extensions: return "extensions"
         case .downloads: return "downloads"
+        case .wallpapers: return "wallpapers"
+        case .customize: return "customize"
         case .install(let p): return "install-\(p.id)"
         }
     }
@@ -43,6 +45,7 @@ struct RootView: View {
         .preferredColorScheme(settings.data.theme.colorScheme)
         .tint(settings.accent)
         .fontDesign(settings.data.fontDesign.design)
+        .dynamicTypeSize(settings.data.textSize.size)
     }
 }
 
@@ -265,6 +268,10 @@ struct BrowserView: View {
             ExtensionsView()
         case .downloads:
             DownloadsView()
+        case .wallpapers:
+            NavigationStack { WallpaperStudioView(standalone: true) }
+        case .customize:
+            NavigationStack { CustomizeView(standalone: true) }
         case .install(let pending):
             InstallSheet(pending: pending)
         }

@@ -21,10 +21,11 @@ struct SettingsView: View {
                     .padding(.vertical, 6)
                 }
                 Section("Customize") {
-                    link("Appearance", "paintbrush.fill", .pink) { AppearanceSettings() }
+                    link("Customize", "paintbrush.fill", .pink) { CustomizeView() }
+                    link("Wallpaper", "photo.on.rectangle", .orange) { WallpaperStudioView() }
                     link("Address Bar & Toolbar", "rectangle.bottomhalf.inset.filled", .blue) { ToolbarSettings() }
                     link("Tabs", "square.on.square", .indigo) { TabSettings() }
-                    link("Home Page", "house.fill", .orange) { HomeSettings() }
+                    link("Start Page", "house.fill", .red) { HomeSettings() }
                 }
                 Section("Browsing") {
                     link("Search", "magnifyingglass", .green) { SearchSettings() }
@@ -152,6 +153,13 @@ struct ToolbarSettings: View {
                 Toggle("Hide Bars While Scrolling", isOn: $settings.data.hideBarsOnScroll)
                 Toggle("Swipe Address Bar to Switch Tabs", isOn: $settings.data.swipeAddressBarToSwitchTabs)
                 Toggle("Show Tab Strip", isOn: $settings.data.showTabStrip)
+                Toggle("Center Address", isOn: $settings.data.centerAddress)
+            }
+            Section("Toolbar Style") {
+                Picker("Icon Weight", selection: $settings.data.toolbarIconWeight) {
+                    ForEach(IconWeight.allCases) { Text($0.title).tag($0) }
+                }
+                Toggle("Show Button Labels", isOn: $settings.data.toolbarLabels)
             }
             Section {
                 ForEach(settings.data.toolbarItems) { item in
@@ -220,79 +228,53 @@ struct TabSettings: View {
 
 struct HomeSettings: View {
     @EnvironmentObject var settings: BrowserSettings
-    @State private var photo: PhotosPickerItem?
 
     var body: some View {
         Form {
-            Section("Wallpaper") {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(WallpaperStyle.allCases.filter { $0 != .photo }) { style in
-                            swatch(style)
-                        }
-                    }
-                    .padding(.vertical, 6)
+            Section {
+                HStack {
+                    Spacer()
+                    HomePreview().frame(height: 230)
+                    Spacer()
                 }
-                if settings.data.wallpaper == .solid {
-                    ColorPicker("Color", selection: settings.solidWallpaperBinding, supportsOpacity: false)
+                .listRowBackground(Color.clear)
+                NavigationLink { WallpaperStudioView() } label: {
+                    Label("Wallpaper", systemImage: "photo.on.rectangle")
                 }
-                PhotosPicker(selection: $photo, matching: .images) {
-                    Label(settings.data.wallpaper == .photo ? "Change Photo" : "Choose Photo…", systemImage: "photo")
-                }
-                if settings.data.wallpaper != .none {
-                    VStack(alignment: .leading) {
-                        Text("Dim: \(Int(settings.data.wallpaperDim * 100))%")
-                        Slider(value: $settings.data.wallpaperDim, in: 0...0.8)
-                    }
+                Picker("Text Color", selection: $settings.data.homeTextStyle) {
+                    ForEach(HomeTextStyle.allCases) { Text($0.title).tag($0) }
                 }
             }
-            Section("Content") {
+            Section("Header") {
                 Toggle("Show Saints Logo", isOn: $settings.data.showLogo)
-                TextField("Greeting (leave empty for time of day)", text: $settings.data.greeting)
+                Toggle("Show Greeting", isOn: $settings.data.showGreeting)
+                if settings.data.showGreeting {
+                    TextField("Greeting (empty = time of day)", text: $settings.data.greeting)
+                }
+            }
+            Section("Search Field") {
+                VStack(alignment: .leading) {
+                    Text("Roundness: \(Int(settings.data.searchFieldRoundness))")
+                    Slider(value: $settings.data.searchFieldRoundness, in: 0...26, step: 1)
+                }
+            }
+            Section("Favorites") {
                 Toggle("Show Favorites", isOn: $settings.data.showFavorites)
                 if settings.data.showFavorites {
-                    Stepper("Favorites per Row: \(settings.data.favoritesColumns)", value: $settings.data.favoritesColumns, in: 3...6)
+                    Stepper("Per Row: \(settings.data.favoritesColumns)", value: $settings.data.favoritesColumns, in: 3...6)
+                    Picker("Icon Shape", selection: $settings.data.favoriteShape) {
+                        ForEach(TileShape.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
                 }
-                Toggle("Show Privacy Stats", isOn: $settings.data.showPrivacyStats)
+            }
+            Section("Sections") {
+                Toggle("Recently Visited", isOn: $settings.data.showRecent)
+                Toggle("Privacy Summary", isOn: $settings.data.showPrivacyStats)
                 Toggle("Load Site Icons via DuckDuckGo", isOn: $settings.data.loadFavicons)
             }
         }
-        .navigationTitle("Home Page")
-        .onChange(of: photo) { item in
-            guard let item else { return }
-            Task {
-                if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data),
-                   let jpeg = image.jpegData(compressionQuality: 0.85) {
-                    try? jpeg.write(to: WallpaperView.photoURL, options: .atomic)
-                    await MainActor.run {
-                        settings.data.wallpaper = .photo
-                        settings.data.wallpaperStamp = Date().timeIntervalSince1970
-                    }
-                }
-            }
-        }
-    }
-
-    private func swatch(_ style: WallpaperStyle) -> some View {
-        VStack(spacing: 4) {
-            ZStack {
-                if let colors = style.gradient {
-                    LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
-                } else if style == .solid {
-                    Color(hex: settings.data.wallpaperSolidHex)
-                } else {
-                    Color(uiColor: .systemBackground)
-                    Image(systemName: "nosign").foregroundStyle(.secondary)
-                }
-            }
-            .frame(width: 54, height: 80)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(settings.data.wallpaper == style ? settings.accent : Color.secondary.opacity(0.3),
-                              lineWidth: settings.data.wallpaper == style ? 3 : 1))
-            Text(style.title).font(.caption2)
-        }
-        .onTapGesture { settings.data.wallpaper = style; settings.haptic() }
+        .navigationTitle("Start Page")
     }
 }
 

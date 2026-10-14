@@ -16,6 +16,40 @@ enum WebViewFactory {
     })();
     """
 
+    /// Darkens light pages. Pages that are already dark (or follow `prefers-color-scheme`) are left alone.
+    static func darkPagesScript(always: Bool) -> String {
+        """
+        (function () {
+          if (window.__saintsDark) return;
+          window.__saintsDark = true;
+          const always = \(always);
+          const css = 'html{filter:invert(0.9) hue-rotate(180deg)!important;background:#fff!important}' +
+            'img,video,picture,canvas,iframe,embed,object,svg image,[style*="background-image"]' +
+            '{filter:invert(1) hue-rotate(180deg)!important}';
+          const lum = (c) => {
+            const m = /rgba?\\(([^)]+)\\)/.exec(c || '');
+            if (!m) return null;
+            const p = m[1].split(',').map(parseFloat);
+            if (p.length > 3 && p[3] === 0) return null;
+            return (0.299 * p[0] + 0.587 * p[1] + 0.114 * p[2]) / 255;
+          };
+          const apply = () => {
+            if (!always && !matchMedia('(prefers-color-scheme: dark)').matches) return;
+            const root = getComputedStyle(document.documentElement).backgroundColor;
+            const body = document.body ? getComputedStyle(document.body).backgroundColor : '';
+            const l = lum(body) ?? lum(root) ?? 1;
+            if (l < 0.45) return;                       // already dark
+            const style = document.createElement('style');
+            style.id = 'saints-dark-pages';
+            style.textContent = css;
+            (document.head || document.documentElement).appendChild(style);
+          };
+          if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply, { once: true });
+          else apply();
+        })();
+        """
+    }
+
     static func makeConfiguration(isPrivate: Bool) -> WKWebViewConfiguration {
         let settings = BrowserSettings.shared.data
         let config = WKWebViewConfiguration()
@@ -42,6 +76,11 @@ enum WebViewFactory {
         if BrowserSettings.shared.data.globalPrivacyControl {
             controller.addUserScript(WKUserScript(source: gpcScript, injectionTime: .atDocumentStart,
                                                   forMainFrameOnly: false, in: .page))
+        }
+        let darkMode = BrowserSettings.shared.data.darkWebPages
+        if darkMode != .off {
+            controller.addUserScript(WKUserScript(source: darkPagesScript(always: darkMode == .always),
+                                                  injectionTime: .atDocumentStart, forMainFrameOnly: true, in: .page))
         }
         ExtensionHost.shared.install(into: controller, isPrivate: isPrivate)
         ContentBlocker.shared.apply(to: controller)
