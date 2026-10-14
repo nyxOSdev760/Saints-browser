@@ -45,6 +45,8 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             build > build.log 2>&1 && status=0 || status=$?
           grep -E "error:|\*\* BUILD" build.log | sort -u || true
+          echo "--- Saints warnings ---"
+          grep -E "/Saints/.*warning:" build.log | sort -u | head -80 || true
           if [ "$status" -ne 0 ]; then echo "xcodebuild failed with $status"; exit "$status"; fi
           test -f build/Build/Products/Release-iphoneos/Saints.app/Saints
 
