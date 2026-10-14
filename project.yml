@@ -1,0 +1,82 @@
+name: Saints
+options:
+  bundleIdPrefix: com.saints
+  deploymentTarget:
+    iOS: "16.4"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  Saints:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.4"
+    sources:
+      - path: Saints
+    scheme: {}
+    info:
+      path: Saints/Info.plist
+      properties:
+        CFBundleDisplayName: Saints
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen:
+          UIColorName: AccentColor
+        UIApplicationSupportsIndirectInputEvents: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: false
+        ITSAppUsesNonExemptEncryption: false
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoadsInWebContent: true
+        CFBundleURLTypes:
+          - CFBundleURLName: com.saints.browser
+            CFBundleURLSchemes:
+              - saints
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: org.mozilla.xpi
+            UTTypeDescription: Firefox Extension
+            UTTypeConformsTo: [public.zip-archive, public.data]
+            UTTypeTagSpecification:
+              public.filename-extension: [xpi]
+              public.mime-type: [application/x-xpinstall]
+          - UTTypeIdentifier: com.google.crx
+            UTTypeDescription: Chrome Extension
+            UTTypeConformsTo: [public.data]
+            UTTypeTagSpecification:
+              public.filename-extension: [crx]
+              public.mime-type: [application/x-chrome-extension]
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Browser Extension
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [org.mozilla.xpi, com.google.crx, public.zip-archive]
+          - CFBundleTypeName: User Script
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [com.netscape.javascript-source, public.plain-text]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.saints.browser
+        PRODUCT_NAME: Saints
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        GENERATE_INFOPLIST_FILE: NO
+        ENABLE_BITCODE: NO
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGN_IDENTITY: ""
+        DEVELOPMENT_TEAM: ""

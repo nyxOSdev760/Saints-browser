@@ -1,0 +1,78 @@
+name: Build Saints IPA
+
+on:
+  push:
+    branches: [master, main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build unsigned IPA
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Xcode
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Saints.xcodeproj \
+            -scheme Saints \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tee build.log | grep -E "error:|warning: .*(Saints/)|\*\* BUILD" || true
+          test -d build/Build/Products/Release-iphoneos/Saints.app
+
+      - name: Show errors
+        if: failure()
+        run: grep -E "error:" build.log | sort -u | head -100 || true
+
+      - name: Package IPA
+        run: |
+          rm -rf Payload Saints.ipa
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/Saints.app Payload/
+          zip -qry Saints.ipa Payload
+          ls -lh Saints.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Saints-ipa
+          path: Saints.ipa
+          if-no-files-found: error
+
+      - name: Publish release
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('build-{0}', github.run_number) }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('Saints build {0}', github.run_number) }}
+          body: |
+            Unsigned Saints IPA built from ${{ github.sha }}.
+            Sideload with AltStore, SideStore, Sideloadly or TrollStore (they sign it with your Apple ID).
+          files: Saints.ipa
+          make_latest: true
