@@ -37,6 +37,21 @@ struct ExtensionsView: View {
                     Text("Install Firefox add-ons (.xpi), Chrome extensions (.crx), userscripts (.user.js) and userstyles. Saints supports the common WebExtension APIs — storage, messaging, tabs, scripting, i18n, alarms and declarativeNetRequest content blocking.")
                 }
 
+                Section {
+                    NavigationLink { UBlockView() } label: {
+                        HStack(spacing: 12) {
+                            UBlockBadge(size: 38)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("uBlock Origin")
+                                Text(UBlockEngine.shared.state.enabled ? "Built in · \(UBlockEngine.shared.status.text)" : "Built in · Off")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Built In")
+                }
+
                 if busy {
                     HStack { ProgressView(); Text("Fetching…").foregroundStyle(.secondary) }
                 }

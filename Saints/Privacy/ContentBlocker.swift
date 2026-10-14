@@ -139,6 +139,14 @@ final class ContentBlocker: ObservableObject {
         store?.removeContentRuleList(forIdentifier: identifier) { _ in }
     }
 
+    /// Replaces every list whose identifier starts with `prefix` (used by the uBlock Origin engine).
+    func replaceLists(prefix: String, with newLists: [String: WKContentRuleList]) {
+        for key in lists.keys where key.hasPrefix(prefix) && newLists[key] == nil {
+            lists.removeValue(forKey: key)
+        }
+        for (key, list) in newLists { lists[key] = list }
+    }
+
     func apply(to controller: WKUserContentController) {
         controller.removeAllContentRuleLists()
         for list in lists.values {

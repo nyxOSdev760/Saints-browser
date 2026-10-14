@@ -45,8 +45,13 @@ enum AppBootstrap {
             booted = true
             TabManager.shared.bootstrap()
         }
-        // Wait briefly for content blockers so the first page load is already protected.
-        ContentBlocker.shared.compileBuiltIns(settings: settings.data) {
+        // Wait briefly for content blockers (built-in + uBlock Origin) so the first page load is protected.
+        let ready = DispatchGroup()
+        ready.enter()
+        ContentBlocker.shared.compileBuiltIns(settings: settings.data) { ready.leave() }
+        ready.enter()
+        UBlockEngine.shared.start { ready.leave() }
+        ready.notify(queue: .main) {
             TabManager.shared.refreshUserContent()
             boot()
         }

@@ -10,6 +10,12 @@ You can sideload it with AltStore, SideStore, Sideloadly or TrollStore. These to
 
 ## Features
 
+**uBlock Origin (built in)**
+- Saints downloads uBlock Origin Lite's precompiled filter lists from [uBOL-home](https://github.com/uBlockOrigin/uBOL-home) and converts them on the device into native WebKit content blockers. The default lists are uBlock filters, EasyList, EasyPrivacy, Peter Lowe's list and the malware lists.
+- It does network blocking, per-site and generic element hiding, and uBO's scriptlets (for video ads and anti-adblock), with no extension process running.
+- You can pick from all of uBO Lite's lists (annoyances, cookie notices, regional lists). Lists update weekly or on demand. The page menu has a per-site on/off switch.
+- Some uBO features have no WebKit equivalent and are skipped: redirect rules, header modification and procedural cosmetic filters such as `:has-text()`.
+
 **Extensions**
 - Installs Firefox `.xpi`, Chrome `.crx` and unpacked `.zip` WebExtensions (Manifest V2 and V3).
 - Installs userscripts (`.user.js`, Greasemonkey/Tampermonkey `GM_*` and `GM.*` APIs) and userstyles (`.user.css`, `@-moz-document`).

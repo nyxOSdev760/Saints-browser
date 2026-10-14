@@ -334,6 +334,15 @@ struct InstallSheet: View {
                     }
                     .padding(.vertical, 4)
                     if !ext.summary.isEmpty { Text(ext.summary).font(.subheadline) }
+                    if ext.name.localizedCaseInsensitiveContains("uBlock Origin") {
+                        NavigationLink {
+                            UBlockView()
+                        } label: {
+                            Label("Saints has uBlock Origin built in. It runs natively in WebKit and needs no extension.",
+                                  systemImage: "shield.fill")
+                                .font(.footnote)
+                        }
+                    }
                     if pending.replacing != nil {
                         Label("This will update the installed version.", systemImage: "arrow.triangle.2.circlepath")
                             .font(.footnote)

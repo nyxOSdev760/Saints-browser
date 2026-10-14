@@ -57,6 +57,7 @@ struct HomePageView: View {
     @EnvironmentObject var settings: BrowserSettings
     @EnvironmentObject var library: LibraryStore
     @ObservedObject private var stats = PrivacyStats.shared
+    @ObservedObject private var ublock = UBlockEngine.shared
     @State private var editingBookmark: Bookmark?
 
     private var onWallpaper: Bool { tab.isPrivate || settings.data.wallpaper != .none }
@@ -159,6 +160,15 @@ struct HomePageView: View {
             HStack(spacing: 10) {
                 stat("\(stats.linksCleaned)", "Tracking links cleaned")
                 stat("\(stats.httpsUpgrades)", "HTTPS upgrades")
+            }
+            HStack(spacing: 8) {
+                UBlockBadge(size: 24)
+                Text("uBlock Origin").font(.subheadline.weight(.semibold))
+                Spacer()
+                Text(ublock.state.enabled ? ublock.status.text : "Off")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(ublock.status == .ready ? Color.green : Color.secondary)
+                    .lineLimit(1)
             }
             HStack(spacing: 6) {
                 pill("Trackers", on: settings.data.blockTrackers)

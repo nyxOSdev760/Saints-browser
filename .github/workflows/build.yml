@@ -24,6 +24,12 @@ jobs:
       - name: Show Xcode
         run: xcodebuild -version
 
+      - name: Check uBlock Origin filter conversion
+        continue-on-error: true
+        run: |
+          swiftc -O Saints/Blocking/UBlockConverter.swift Tools/UBOCheck/main.swift -o ubocheck
+          ./ubocheck annoyances-cookies
+
       - name: Install XcodeGen
         run: brew install xcodegen
 

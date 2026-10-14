@@ -38,6 +38,7 @@ enum WebViewFactory {
     static func installUserContent(on controller: WKUserContentController, isPrivate: Bool) {
         controller.removeAllUserScripts()
         controller.removeAllScriptMessageHandlers()
+        UBlockEngine.shared.install(into: controller)
         if BrowserSettings.shared.data.globalPrivacyControl {
             controller.addUserScript(WKUserScript(source: gpcScript, injectionTime: .atDocumentStart,
                                                   forMainFrameOnly: false, in: .page))

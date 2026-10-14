@@ -28,6 +28,7 @@ struct SettingsView: View {
                 }
                 Section("Browsing") {
                     link("Search", "magnifyingglass", .green) { SearchSettings() }
+                    link("uBlock Origin", "shield.fill", Color(hex: "#800000")) { UBlockView() }
                     link("Privacy & Security", "hand.raised.fill", .purple) { PrivacySettings() }
                     link("Website Content", "doc.richtext", .teal) { ContentSettings() }
                     link("Extensions", "puzzlepiece.extension.fill", .cyan) { ExtensionsSettingsLink() }

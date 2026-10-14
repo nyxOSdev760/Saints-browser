@@ -13,6 +13,7 @@ struct AddressBar: View {
     @EnvironmentObject var settings: BrowserSettings
     @EnvironmentObject var extensions: ExtensionManager
     @EnvironmentObject var tabs: TabManager
+    @ObservedObject private var ublock = UBlockEngine.shared
     @State private var dragOffset: CGFloat = 0
 
     private var isEditing: Bool { focused.wrappedValue }
@@ -137,6 +138,21 @@ struct AddressBar: View {
                 }
                 Button { tab.webView.findInteraction?.presentFindNavigator(showingReplace: false) } label: {
                     Label("Find on Page", systemImage: "doc.text.magnifyingglass")
+                }
+            }
+            if ublock.state.enabled, let host = tab.url?.host {
+                Section("uBlock Origin") {
+                    Button {
+                        settings.haptic(.medium)
+                        let target = tab
+                        ublock.toggleAllowlist(host) { [weak target] in target?.webView.reload() }
+                    } label: {
+                        if ublock.isAllowlisted(host) {
+                            Label("Turn On for This Site", systemImage: "shield.fill")
+                        } else {
+                            Label("Turn Off for This Site", systemImage: "shield.slash")
+                        }
+                    }
                 }
             }
             let actionable = extensions.activeExtensions.filter { $0.kind == .webExtension && ($0.popupPath != nil || $0.hasBackground) }
