@@ -366,7 +366,7 @@ extension BrowserTab: WKUIDelegate {
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                  for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
         let background = BrowserSettings.shared.data.openLinksInBackground
-        let tab = TabManager.shared.newTab(configuration: configuration, isPrivate: isPrivate, select: !background)
+        let tab = TabManager.shared.newTab(isPrivate: isPrivate, select: !background, configuration: configuration)
         if background { ToastCenter.shared.show("Opened in a new tab", symbol: "plus.square.on.square") }
         return tab.webView
     }

@@ -43,8 +43,10 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            build 2>&1 | tee build.log | grep -E "error:|warning: .*(Saints/)|\*\* BUILD" || true
-          test -d build/Build/Products/Release-iphoneos/Saints.app
+            build > build.log 2>&1 && status=0 || status=$?
+          grep -E "error:|\*\* BUILD" build.log | sort -u || true
+          if [ "$status" -ne 0 ]; then echo "xcodebuild failed with $status"; exit "$status"; fi
+          test -f build/Build/Products/Release-iphoneos/Saints.app/Saints
 
       - name: Show errors
         if: failure()
@@ -57,6 +59,8 @@ jobs:
           cp -R build/Build/Products/Release-iphoneos/Saints.app Payload/
           zip -qry Saints.ipa Payload
           ls -lh Saints.ipa
+          size=$(stat -f%z Saints.ipa)
+          if [ "$size" -lt 500000 ]; then echo "IPA is suspiciously small ($size bytes)"; exit 1; fi
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4

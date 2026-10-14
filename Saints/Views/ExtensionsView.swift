@@ -21,8 +21,8 @@ struct ExtensionsView: View {
     }
 
     static let importTypes: [UTType] = {
-        var types: [UTType] = [.zip, .javaScript, .plainText, .data, .css]
-        for ext in ["xpi", "crx"] { if let t = UTType(filenameExtension: ext) { types.append(t) } }
+        var types: [UTType] = [.zip, .javaScript, .plainText, .data]
+        for ext in ["xpi", "crx", "css"] { if let t = UTType(filenameExtension: ext) { types.append(t) } }
         return types
     }()
 

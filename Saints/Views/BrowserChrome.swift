@@ -60,7 +60,7 @@ struct AddressBar: View {
                                 Text(displayText)
                                     .lineLimit(1)
                                     .truncationMode(.middle)
-                                    .foregroundStyle(tab.url == nil ? .secondary : .primary)
+                                    .foregroundStyle(tab.url == nil ? Color.secondary : Color.primary)
                             }
                             .frame(maxWidth: .infinity)
                             .contentShape(Rectangle())
