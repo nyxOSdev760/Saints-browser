@@ -60,6 +60,7 @@ struct BrowserView: View {
     @State private var showTabs = false
     @State private var sheet: BrowserSheet?
     @State private var confirmBurn = false
+    @State private var homeSearching = false
 
     private var isTop: Bool { settings.data.barPosition == .top }
     private var collapsed: Bool { tab.chromeCollapsed && !addressFocused && !tab.showsHome }
@@ -67,9 +68,15 @@ struct BrowserView: View {
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
-                if isTop { topChrome }
+                if isTop && !homeSearching { topChrome }
                 content
-                if !isTop { bottomChromeSafari } else if !collapsed && !addressFocused { toolbarOnly }
+                if homeSearching {
+                    EmptyView()
+                } else if !isTop {
+                    bottomChromeSafari
+                } else if !collapsed && !addressFocused {
+                    toolbarOnly
+                }
             }
             .background((settings.data.theme == .black ? Color.black : Color(uiColor: .systemBackground)).ignoresSafeArea())
             .sheet(item: $sheet) { sheetView($0) }
@@ -83,6 +90,7 @@ struct BrowserView: View {
         }
         .animation(.spring(response: 0.32, dampingFraction: 0.86), value: showTabs)
         .animation(.easeInOut(duration: 0.22), value: collapsed)
+        .animation(.easeInOut(duration: 0.2), value: homeSearching)
         .sheet(item: $host.presentedPage) { page in
             ExtensionPageSheet(page: page)
         }
@@ -113,7 +121,7 @@ struct BrowserView: View {
             WebViewContainer(webView: tab.webView)
                 .opacity(tab.showsHome ? 0 : 1)
             if tab.showsHome {
-                HomePageView(tab: tab) { addressFocused = true }
+                HomePageView(tab: tab, searching: $homeSearching)
             }
             if addressFocused {
                 SuggestionsView(query: addressText) { pick in submit(pick) }

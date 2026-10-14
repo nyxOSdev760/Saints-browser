@@ -34,6 +34,11 @@ struct AddressBar: View {
                 HStack(spacing: 6) {
                     if isEditing {
                         Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                    } else {
+                        pageMenu
+                    }
+                    ZStack {
+                        // The field always exists so it can take focus the moment the bar is tapped.
                         TextField("Search or enter address", text: $text)
                             .focused(focused)
                             .textInputAutocapitalization(.never)
@@ -41,32 +46,36 @@ struct AddressBar: View {
                             .keyboardType(.webSearch)
                             .submitLabel(.go)
                             .onSubmit { onSubmit(text) }
+                            .opacity(isEditing ? 1 : 0)
+                            .allowsHitTesting(isEditing)
+                        if !isEditing {
+                            Button(action: beginEditing) {
+                                HStack(spacing: 5) {
+                                    if tab.url?.scheme == "https" {
+                                        Image(systemName: "lock.fill").font(.caption2).foregroundStyle(.secondary)
+                                    } else if tab.url?.scheme == "http" {
+                                        Image(systemName: "exclamationmark.triangle.fill").font(.caption2).foregroundStyle(.orange)
+                                    }
+                                    Text(displayText)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                        .foregroundStyle(tab.url == nil ? Color.secondary : Color.primary)
+                                }
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    if isEditing {
                         if !text.isEmpty {
                             Button { text = "" } label: {
                                 Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                                    .frame(width: 28, height: 28)
                             }
+                            .buttonStyle(.plain)
                         }
                     } else {
-                        pageMenu
-                        Button {
-                            text = tab.url.map { SearchEngine.query(from: $0) ?? $0.absoluteString } ?? ""
-                            focused.wrappedValue = true
-                        } label: {
-                            HStack(spacing: 5) {
-                                if tab.url?.scheme == "https" {
-                                    Image(systemName: "lock.fill").font(.caption2).foregroundStyle(.secondary)
-                                } else if tab.url?.scheme == "http" {
-                                    Image(systemName: "exclamationmark.triangle.fill").font(.caption2).foregroundStyle(.orange)
-                                }
-                                Text(displayText)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                    .foregroundStyle(tab.url == nil ? Color.secondary : Color.primary)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
                         reloadButton
                     }
                 }
@@ -90,12 +99,18 @@ struct AddressBar: View {
 
             if isEditing {
                 Button("Cancel") {
+                    text = ""
                     focused.wrappedValue = false
                 }
                 .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: isEditing)
+    }
+
+    private func beginEditing() {
+        text = tab.url.map { SearchEngine.query(from: $0) ?? $0.absoluteString } ?? ""
+        focused.wrappedValue = true
     }
 
     private var swipeGesture: some Gesture {

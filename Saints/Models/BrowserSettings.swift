@@ -180,7 +180,9 @@ struct SettingsData: Codable, Equatable {
     var restoreTabs: Bool = true
 
     // Home page
-    var wallpaper: WallpaperStyle = .halo
+    var wallpaper: WallpaperStyle = .none
+    /// Bumped when the home page is redesigned; older saves are migrated off the old default wallpaper.
+    var homeVersion: Int = 2
     var wallpaperSolidHex: String = "#1C1C1E"
     var wallpaperDim: Double = 0.15
     var wallpaperStamp: Double = 0
@@ -248,6 +250,11 @@ struct SettingsData: Codable, Equatable {
         openLinksInBackground = v(.openLinksInBackground, openLinksInBackground)
         restoreTabs = v(.restoreTabs, restoreTabs)
         wallpaper = v(.wallpaper, wallpaper)
+        homeVersion = v(.homeVersion, 1)
+        if homeVersion < 2 {
+            if wallpaper == .halo { wallpaper = .none }
+            homeVersion = 2
+        }
         wallpaperSolidHex = v(.wallpaperSolidHex, wallpaperSolidHex)
         wallpaperDim = v(.wallpaperDim, wallpaperDim)
         wallpaperStamp = v(.wallpaperStamp, wallpaperStamp)

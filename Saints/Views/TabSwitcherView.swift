@@ -76,22 +76,39 @@ struct TabSwitcherView: View {
     private var listView: some View {
         List {
             ForEach(list) { tab in
-                Button { choose(tab) } label: {
-                    HStack(spacing: 12) {
-                        if let url = tab.url {
-                            FaviconView(urlString: url.absoluteString, size: 34)
-                        } else {
-                            Image(systemName: "house").frame(width: 34, height: 34)
+                HStack(spacing: 12) {
+                    // Borderless buttons so a List row can hold two independent tap targets.
+                    Button { choose(tab) } label: {
+                        HStack(spacing: 12) {
+                            if let url = tab.url {
+                                FaviconView(urlString: url.absoluteString, size: 34)
+                            } else {
+                                Image(systemName: "house").frame(width: 34, height: 34)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(tab.displayTitle).lineLimit(1).foregroundStyle(.primary)
+                                Text(tab.url?.host ?? "Home").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if tab === tabs.selectedTab {
+                                Image(systemName: "checkmark").foregroundStyle(settings.accent)
+                            }
                         }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(tab.displayTitle).lineLimit(1).foregroundStyle(.primary)
-                            Text(tab.url?.host ?? "Home").font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        if tab === tabs.selectedTab {
-                            Image(systemName: "checkmark").foregroundStyle(settings.accent)
-                        }
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.borderless)
+                    Button {
+                        settings.haptic()
+                        withAnimation { tabs.close(tab) }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 40, height: 40)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Close tab")
                 }
                 .swipeActions {
                     Button(role: .destructive) { tabs.close(tab) } label: { Label("Close", systemImage: "xmark") }
@@ -166,27 +183,62 @@ private struct TabCard: View {
     @State private var dragX: CGFloat = 0
 
     var body: some View {
+        // The close button is a sibling of the card button (not nested in it), so taps on ✕ always close.
+        Button(action: onTap) { card }
+            .buttonStyle(CardPressStyle())
+            .overlay(alignment: .topTrailing) {
+                Button {
+                    settings.haptic()
+                    onClose()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.primary)
+                        .frame(width: 24, height: 24)
+                        .background(.regularMaterial, in: Circle())
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close tab")
+            }
+            .offset(x: dragX)
+            .opacity(1 - Double(min(abs(dragX), 250) / 300))
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 30)
+                    .onChanged { v in
+                        if abs(v.translation.width) > abs(v.translation.height) * 1.5 { dragX = v.translation.width }
+                    }
+                    .onEnded { v in
+                        if abs(dragX) > 110 {
+                            withAnimation(.easeOut(duration: 0.18)) { dragX = v.translation.width > 0 ? 500 : -500 }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { onClose() }
+                        } else {
+                            withAnimation(.spring()) { dragX = 0 }
+                        }
+                    }
+            )
+            .onAppear { if !tab.showsHome && tab.snapshot == nil { tab.captureSnapshot() } }
+    }
+
+    private var card: some View {
         VStack(spacing: 0) {
             HStack(spacing: 6) {
                 if let url = tab.url {
                     FaviconView(urlString: url.absoluteString, size: 16)
+                } else {
+                    Image(systemName: tab.isPrivate ? "eyeglasses" : "house.fill").font(.caption2).foregroundStyle(.secondary)
                 }
                 Text(tab.displayTitle).font(.caption.weight(.semibold)).lineLimit(1)
-                Spacer(minLength: 0)
-                Button(action: onClose) {
-                    Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
-                        .frame(width: 22, height: 22)
-                        .background(Color(uiColor: .tertiarySystemFill), in: Circle())
-                }
-                .buttonStyle(.plain)
+                Spacer(minLength: 34)   // room for the close button
             }
-            .padding(.horizontal, 8)
-            .frame(height: 32)
+            .padding(.leading, 10)
+            .frame(height: 36)
 
             ZStack {
                 if tab.showsHome {
                     WallpaperView(isPrivate: tab.isPrivate)
-                    SaintsLogo(size: 20).foregroundStyle(.white)
+                    SaintsLogo(size: 20).foregroundStyle(settings.data.wallpaper == .none && !tab.isPrivate ? Color.primary : Color.white)
                 } else if let image = tab.snapshot {
                     Image(uiImage: image).resizable().scaledToFill()
                 } else {
@@ -197,6 +249,7 @@ private struct TabCard: View {
             .frame(height: 190)
             .frame(maxWidth: .infinity)
             .clipped()
+            .allowsHitTesting(false)
         }
         .background(Color(uiColor: .secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -205,17 +258,14 @@ private struct TabCard: View {
                 .strokeBorder(selected ? settings.accent : Color.clear, lineWidth: 3)
         )
         .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
-        .offset(x: dragX)
-        .opacity(1 - Double(abs(dragX) / 300))
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onTap)
-        .gesture(
-            DragGesture(minimumDistance: 25)
-                .onChanged { v in if abs(v.translation.width) > abs(v.translation.height) { dragX = v.translation.width } }
-                .onEnded { v in
-                    if abs(v.translation.width) > 110 { onClose() } else { withAnimation(.spring()) { dragX = 0 } }
-                }
-        )
-        .onAppear { if !tab.showsHome && tab.snapshot == nil { tab.captureSnapshot() } }
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+private struct CardPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }

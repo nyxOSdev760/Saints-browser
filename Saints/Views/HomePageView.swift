@@ -52,21 +52,26 @@ struct WallpaperView: View {
 
 struct HomePageView: View {
     @ObservedObject var tab: BrowserTab
-    var onSearchTap: () -> Void
+    /// True while the home search field is focused (the browser hides its bottom bars meanwhile).
+    @Binding var searching: Bool
 
     @EnvironmentObject var settings: BrowserSettings
     @EnvironmentObject var library: LibraryStore
     @ObservedObject private var stats = PrivacyStats.shared
     @ObservedObject private var ublock = UBlockEngine.shared
     @State private var editingBookmark: Bookmark?
+    @State private var query = ""
+    @State private var remote: [String] = []
+    @FocusState private var fieldFocused: Bool
 
     private var onWallpaper: Bool { tab.isPrivate || settings.data.wallpaper != .none }
+    private var ink: Color { onWallpaper ? .white : .primary }
+    private var subInk: Color { onWallpaper ? .white.opacity(0.75) : .secondary }
 
     private var greeting: String {
         if !settings.data.greeting.isEmpty { return settings.data.greeting }
         if tab.isPrivate { return "Private Browsing" }
-        let hour = Calendar.current.component(.hour, from: Date())
-        switch hour {
+        switch Calendar.current.component(.hour, from: Date()) {
         case 5..<12: return "Good morning"
         case 12..<18: return "Good afternoon"
         default: return "Good evening"
@@ -76,145 +81,325 @@ struct HomePageView: View {
     var body: some View {
         ZStack {
             WallpaperView(isPrivate: tab.isPrivate)
+                .onTapGesture { fieldFocused = false }
             ScrollView {
-                VStack(spacing: 26) {
-                    Spacer(minLength: 40)
-                    if settings.data.showLogo {
-                        SaintsLogo(size: 46)
-                            .foregroundStyle(onWallpaper ? Color.white : Color.primary)
+                VStack(spacing: 0) {
+                    if !fieldFocused {
+                        header
+                            .padding(.top, 48)
+                            .padding(.bottom, 26)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
                     }
-                    Text(greeting)
-                        .font(.title3.weight(.medium))
-                        .foregroundStyle(onWallpaper ? Color.white.opacity(0.9) : Color.secondary)
-
-                    Button(action: onSearchTap) {
-                        HStack {
-                            Image(systemName: "magnifyingglass")
-                            Text("Search privately with DuckDuckGo")
-                            Spacer()
+                    searchField
+                        .padding(.top, fieldFocused ? 12 : 0)
+                    if fieldFocused {
+                        suggestions.padding(.top, 14)
+                    } else {
+                        VStack(spacing: 28) {
+                            if tab.isPrivate { privateNote }
+                            if settings.data.showFavorites && !library.favorites.isEmpty { favorites }
+                            if !tab.isPrivate && !recent.isEmpty { recentSection }
+                            if settings.data.showPrivacyStats && !tab.isPrivate { privacyLine }
                         }
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 16)
-                        .frame(height: 50)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: settings.data.barCornerRadius + 4, style: .continuous))
+                        .padding(.top, 30)
+                        .padding(.bottom, 30)
                     }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 24)
-
-                    if tab.isPrivate {
-                        privateCard
-                    }
-                    if settings.data.showFavorites && !library.favorites.isEmpty {
-                        favorites
-                    }
-                    if settings.data.showPrivacyStats && !tab.isPrivate {
-                        statsCard
-                    }
-                    Spacer(minLength: 30)
                 }
-                .frame(maxWidth: 640)
+                .padding(.horizontal, 18)
+                .frame(maxWidth: 620)
                 .frame(maxWidth: .infinity)
             }
-            .scrollDismissesKeyboard(.immediately)
+            .scrollDismissesKeyboard(.interactively)
         }
-        .sheet(item: $editingBookmark) { b in
-            BookmarkEditor(bookmark: b)
+        .animation(.spring(response: 0.32, dampingFraction: 0.88), value: fieldFocused)
+        .onChange(of: fieldFocused) { focused in
+            searching = focused
+            if !focused { query = "" }
+        }
+        .onChange(of: query) { fetchSuggestions($0) }
+        .onDisappear { searching = false }
+        .sheet(item: $editingBookmark) { BookmarkEditor(bookmark: $0) }
+    }
+
+    // MARK: Header & search
+
+    private var header: some View {
+        VStack(spacing: 10) {
+            if settings.data.showLogo {
+                SaintsLogo(size: 40).foregroundStyle(ink)
+            }
+            Text(greeting)
+                .font(.headline)
+                .foregroundStyle(subInk)
         }
     }
 
-    private var favorites: some View {
-        let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: max(3, min(settings.data.favoritesColumns, 6)))
-        return VStack(alignment: .leading, spacing: 12) {
-            Text("Favorites").font(.headline)
-                .foregroundStyle(onWallpaper ? Color.white : Color.primary)
-            LazyVGrid(columns: columns, spacing: 16) {
-                ForEach(library.favorites) { b in
-                    Button {
-                        if let url = URL(string: b.url) { tab.load(url) }
-                    } label: {
-                        VStack(spacing: 6) {
-                            FaviconView(urlString: b.url, size: 56)
-                            Text(b.title).font(.caption2).lineLimit(1)
-                                .foregroundStyle(onWallpaper ? Color.white : Color.primary)
-                        }
+    private var searchField: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(.secondary)
+                TextField("Search or enter address", text: $query)
+                    .focused($fieldFocused)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.webSearch)
+                    .submitLabel(.go)
+                    .onSubmit { go(query) }
+                if !query.isEmpty {
+                    Button { query = "" } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+            .frame(height: 52)
+            .background(fieldBackground)
+            .overlay(
+                RoundedRectangle(cornerRadius: fieldRadius, style: .continuous)
+                    .strokeBorder(fieldFocused ? settings.accent : Color.primary.opacity(0.06), lineWidth: fieldFocused ? 2 : 1)
+            )
+            .shadow(color: .black.opacity(onWallpaper ? 0.18 : 0.06), radius: 12, y: 4)
+            .contentShape(Rectangle())
+            .onTapGesture { fieldFocused = true }
+
+            if fieldFocused {
+                Button("Cancel") { fieldFocused = false }
+                    .foregroundStyle(ink)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+        }
+    }
+
+    private var fieldRadius: CGFloat { settings.data.barCornerRadius + 6 }
+
+    @ViewBuilder private var fieldBackground: some View {
+        if onWallpaper {
+            RoundedRectangle(cornerRadius: fieldRadius, style: .continuous).fill(.regularMaterial)
+        } else {
+            RoundedRectangle(cornerRadius: fieldRadius, style: .continuous).fill(Color(uiColor: .secondarySystemBackground))
+        }
+    }
+
+    // MARK: Suggestions
+
+    private var suggestions: some View {
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
+        let local = library.suggestions(for: trimmed, limit: 4)
+        return VStack(spacing: 0) {
+            if trimmed.isEmpty {
+                if !recent.isEmpty {
+                    sectionTitle("Recently Visited")
+                    ForEach(recent.prefix(5), id: \.url) { item in
+                        suggestionRow(icon: "clock", title: item.title, subtitle: item.url) { go(item.url) }
+                    }
+                } else {
+                    Text("Type to search privately with DuckDuckGo. Try a !bang like “!w saints”.")
+                        .font(.subheadline).foregroundStyle(subInk)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 8)
+                }
+            } else {
+                suggestionRow(icon: "magnifyingglass", title: trimmed, subtitle: "Search DuckDuckGo", bold: true) { go(trimmed) }
+                ForEach(remote.filter { $0.lowercased() != trimmed.lowercased() }, id: \.self) { s in
+                    suggestionRow(icon: "magnifyingglass", title: s, fill: { query = s + " " }) { go(s) }
+                }
+                if !local.isEmpty {
+                    sectionTitle("Bookmarks & History")
+                    ForEach(local, id: \.url) { item in
+                        suggestionRow(icon: "globe", title: item.title.isEmpty ? item.url : item.title, subtitle: item.url) { go(item.url) }
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(onWallpaper ? AnyShapeStyle(.regularMaterial) : AnyShapeStyle(Color(uiColor: .secondarySystemBackground)))
+        )
+    }
+
+    private func sectionTitle(_ text: String) -> some View {
+        Text(text)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.top, 10)
+            .padding(.bottom, 4)
+    }
+
+    private func suggestionRow(icon: String, title: String, subtitle: String? = nil, bold: Bool = false,
+                               fill: (() -> Void)? = nil, action: @escaping () -> Void) -> some View {
+        HStack(spacing: 12) {
+            Button(action: action) {
+                HStack(spacing: 12) {
+                    Image(systemName: icon)
+                        .font(.subheadline)
+                        .foregroundStyle(bold ? settings.accent : Color.secondary)
+                        .frame(width: 22)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(title).font(bold ? .body.weight(.semibold) : .body).lineLimit(1).foregroundStyle(.primary)
+                        if let subtitle {
+                            Text(subtitle).font(.caption).lineLimit(1).foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if let fill {
+                Button(action: fill) {
+                    Image(systemName: "arrow.up.left").font(.subheadline).foregroundStyle(.secondary)
+                        .frame(width: 36, height: 36).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private func fetchSuggestions(_ q: String) {
+        let trimmed = q.trimmingCharacters(in: .whitespaces)
+        guard settings.data.searchSuggestions, trimmed.count > 1, !trimmed.contains("://") else { remote = []; return }
+        SuggestionService.shared.suggestions(for: trimmed) { results in
+            if trimmed == query.trimmingCharacters(in: .whitespaces) { remote = Array(results.prefix(5)) }
+        }
+    }
+
+    private func go(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        fieldFocused = false
+        settings.haptic()
+        tab.loadInput(trimmed)
+    }
+
+    // MARK: Sections
+
+    private var recent: [LocalSuggestion] {
+        var seen = Set<String>()
+        var out: [LocalSuggestion] = []
+        for h in library.history {
+            guard let host = URL(string: h.url)?.host, seen.insert(host).inserted else { continue }
+            out.append(LocalSuggestion(title: h.title.isEmpty ? host : h.title, url: h.url))
+            if out.count == 8 { break }
+        }
+        return out
+    }
+
+    private var favorites: some View {
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: max(3, min(settings.data.favoritesColumns, 6)))
+        return VStack(alignment: .leading, spacing: 14) {
+            Text("Favorites").font(.title3.weight(.bold)).foregroundStyle(ink)
+            LazyVGrid(columns: columns, spacing: 18) {
+                ForEach(library.favorites) { b in
+                    Button {
+                        if let url = URL(string: b.url) { settings.haptic(); tab.load(url) }
+                    } label: {
+                        VStack(spacing: 7) {
+                            FaviconView(urlString: b.url, size: 60)
+                                .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+                            Text(b.title)
+                                .font(.caption)
+                                .lineLimit(1)
+                                .foregroundStyle(ink)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(CardPressStyleHome())
                     .contextMenu {
-                        Button { editingBookmark = b } label: { Label("Edit", systemImage: "pencil") }
                         Button { TabManager.shared.newTab(url: URL(string: b.url), isPrivate: tab.isPrivate) } label: {
                             Label("Open in New Tab", systemImage: "plus.square.on.square")
                         }
+                        Button { TabManager.shared.newTab(url: URL(string: b.url), isPrivate: true) } label: {
+                            Label("Open in Private Tab", systemImage: "eyeglasses")
+                        }
+                        Button { editingBookmark = b } label: { Label("Edit", systemImage: "pencil") }
                         Button(role: .destructive) { library.remove(b) } label: { Label("Remove", systemImage: "trash") }
                     }
                 }
             }
         }
-        .padding(18)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .padding(.horizontal, 16)
     }
 
-    private var statsCard: some View {
+    private var recentSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Privacy Protection", systemImage: "shield.lefthalf.filled").font(.headline)
-            HStack(spacing: 10) {
-                stat("\(stats.linksCleaned)", "Tracking links cleaned")
-                stat("\(stats.httpsUpgrades)", "HTTPS upgrades")
+            Text("Recently Visited").font(.title3.weight(.bold)).foregroundStyle(ink)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(recent, id: \.url) { item in
+                        Button { go(item.url) } label: {
+                            HStack(spacing: 10) {
+                                FaviconView(urlString: item.url, size: 32)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(item.title).font(.subheadline.weight(.medium)).lineLimit(1)
+                                    Text(URL(string: item.url)?.host ?? "").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                }
+                            }
+                            .padding(10)
+                            .frame(width: 210, alignment: .leading)
+                            .background(tileBackground)
+                        }
+                        .buttonStyle(CardPressStyleHome())
+                    }
+                }
             }
-            HStack(spacing: 8) {
-                UBlockBadge(size: 24)
-                Text("uBlock Origin").font(.subheadline.weight(.semibold))
-                Spacer()
-                Text(ublock.state.enabled ? ublock.status.text : "Off")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(ublock.status == .ready ? Color.green : Color.secondary)
-                    .lineLimit(1)
-            }
-            HStack(spacing: 6) {
-                pill("Trackers", on: settings.data.blockTrackers)
-                pill("Ads", on: settings.data.blockAds)
-                pill("Cookie pop-ups", on: settings.data.blockCookieBanners)
-                pill("GPC", on: settings.data.globalPrivacyControl)
-            }
-            Text("Saints has no telemetry, no analytics and no accounts. These numbers never leave your device.")
-                .font(.caption).foregroundStyle(.secondary)
         }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .padding(.horizontal, 16)
     }
 
-    private var privateCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("You're in a private tab", systemImage: "eyeglasses").font(.headline)
-            Text("Saints won't remember pages you visit, searches, or cookies once you close all private tabs. Extensions are off here unless you allow them.")
-                .font(.subheadline).foregroundStyle(.secondary)
+    @ViewBuilder private var tileBackground: some View {
+        if onWallpaper {
+            RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.regularMaterial)
+        } else {
+            RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(uiColor: .secondarySystemBackground))
+        }
+    }
+
+    private var privacyLine: some View {
+        HStack(spacing: 12) {
+            UBlockBadge(size: 30)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(ublock.state.enabled ? "uBlock Origin · \(ublock.status.text)" : "uBlock Origin is off")
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                Text("\(stats.linksCleaned) tracking links cleaned · \(stats.httpsUpgrades) HTTPS upgrades · nothing leaves this device")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(tileBackground)
+    }
+
+    private var privateNote: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "eyeglasses").font(.title2)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Private tab").font(.headline)
+                Text("No history, cookies or cache are kept after you close all private tabs.")
+                    .font(.subheadline).opacity(0.8)
+            }
+            Spacer(minLength: 0)
         }
         .foregroundStyle(.white)
-        .padding(18)
-        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .padding(.horizontal, 16)
+        .padding(14)
+        .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
+}
 
-    private func stat(_ value: String, _ label: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value).font(.title2.weight(.bold)).foregroundStyle(settings.accent)
-            Text(label).font(.caption).foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-
-    private func pill(_ text: String, on: Bool) -> some View {
-        HStack(spacing: 3) {
-            Image(systemName: on ? "checkmark" : "xmark").font(.system(size: 9, weight: .bold))
-            Text(text).font(.caption2.weight(.semibold))
-        }
-        .padding(.horizontal, 8).padding(.vertical, 5)
-        .background((on ? Color.green : Color.gray).opacity(0.18), in: Capsule())
-        .foregroundStyle(on ? Color.green : Color.secondary)
+private struct CardPressStyleHome: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .opacity(configuration.isPressed ? 0.85 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 
