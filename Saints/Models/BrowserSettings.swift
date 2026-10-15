@@ -127,6 +127,23 @@ enum WallpaperStyle: String, Codable, CaseIterable, Identifiable {
     var isLight: Bool { [.peach, .mint, .sand, .glacier, .rose].contains(self) }
 }
 
+/// What SV Browser tells websites it is (the User-Agent). Safari is what WebKit really is, so it's the safest.
+enum BrowserIdentity: String, Codable, CaseIterable, Identifiable {
+    case safari, chrome, firefox, edge, desktopSafari, desktopChrome
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .safari: return "Safari (recommended)"
+        case .chrome: return "Chrome for iPhone"
+        case .firefox: return "Firefox for iPhone"
+        case .edge: return "Edge for iPhone"
+        case .desktopSafari: return "Safari for Mac"
+        case .desktopChrome: return "Chrome for Mac"
+        }
+    }
+    var isDesktop: Bool { self == .desktopSafari || self == .desktopChrome }
+}
+
 enum DarkWebMode: String, Codable, CaseIterable, Identifiable {
     case off, followApp, always
     var id: String { rawValue }
@@ -326,6 +343,7 @@ struct SettingsData: Codable, Equatable {
     var defaultZoom: Double = 1.0
     var desktopByDefault: Bool = false
     var customUserAgent: String = ""
+    var browserIdentity: BrowserIdentity = .safari
 
     // Extensions
     var extensionsEnabled: Bool = true
@@ -406,6 +424,7 @@ struct SettingsData: Codable, Equatable {
         defaultZoom = v(.defaultZoom, defaultZoom)
         desktopByDefault = v(.desktopByDefault, desktopByDefault)
         customUserAgent = v(.customUserAgent, customUserAgent)
+        browserIdentity = v(.browserIdentity, browserIdentity)
         extensionsEnabled = v(.extensionsEnabled, extensionsEnabled)
         interceptExtensionDownloads = v(.interceptExtensionDownloads, interceptExtensionDownloads)
         if migrateToV3 {

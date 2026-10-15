@@ -3,9 +3,63 @@ import WebKit
 import UIKit
 import Combine
 
+/// Builds User-Agent strings that match real browsers on this device.
+enum UserAgent {
+    private static var os: (major: Int, minor: Int, patch: Int) {
+        let parts = UIDevice.current.systemVersion.split(separator: ".").compactMap { Int($0) }
+        return (parts.first ?? 18, parts.count > 1 ? parts[1] : 0, parts.count > 2 ? parts[2] : 0)
+    }
+
+    /// Safari's version tracks the OS version (iOS 17.5 → Safari 17.5, iOS 26.0 → Safari 26.0).
+    static var safariVersion: String { "\(os.major).\(os.minor)" }
+
+    /// Since iOS 26 WebKit freezes the OS token at 18_6, like Safari does.
+    private static var osToken: String {
+        let v = os
+        if v.major >= 26 { return "18_6" }
+        return v.patch > 0 ? "\(v.major)_\(v.minor)_\(v.patch)" : "\(v.major)_\(v.minor)"
+    }
+
+    static var safariSuffix: String { "Version/\(safariVersion) Mobile/15E148 Safari/604.1" }
+
+    private static var devicePrefix: String {
+        UIDevice.current.userInterfaceIdiom == .pad
+            ? "Mozilla/5.0 (iPad; CPU OS \(osToken) like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+            : "Mozilla/5.0 (iPhone; CPU iPhone OS \(osToken) like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+    }
+
+    static func string(for identity: BrowserIdentity) -> String {
+        switch identity {
+        case .safari:
+            return "\(devicePrefix) \(safariSuffix)"
+        case .chrome:
+            return "\(devicePrefix) CriOS/141.0.7390.96 Mobile/15E148 Safari/604.1"
+        case .firefox:
+            return "\(devicePrefix) FxiOS/144.0 Mobile/15E148 Safari/605.1.15"
+        case .edge:
+            return "\(devicePrefix) Version/\(safariVersion) EdgiOS/141.0.3537.71 Mobile/15E148 Safari/604.1"
+        case .desktopSafari:
+            return "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/\(safariVersion) Safari/605.1.15"
+        case .desktopChrome:
+            return "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
+        }
+    }
+
+    /// The `customUserAgent` to set on a web view, or nil to let WebKit send its native Safari string
+    /// (WebKit then also switches correctly between the mobile and desktop Safari strings).
+    static func custom(for settings: SettingsData, desktopMode: Bool) -> String? {
+        let custom = settings.customUserAgent.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !custom.isEmpty { return custom }
+        let identity = settings.browserIdentity
+        if identity == .safari { return nil }
+        if desktopMode && !identity.isDesktop { return nil }
+        return string(for: identity)
+    }
+}
+
 enum WebViewFactory {
-    /// Saints blends in with mobile Safari rather than advertising a unique user agent.
-    static let safariSuffix = "Version/18.0 Mobile/15E148 Safari/604.1"
+    /// Appended to WebKit's own UA prefix so pages see exactly what Safari on this iOS version sends.
+    static var safariSuffix: String { UserAgent.safariSuffix }
 
     static let gpcScript = """
     (function () {
@@ -138,7 +192,7 @@ final class BrowserTab: NSObject, ObservableObject, Identifiable {
         webView.pageZoom = zoom
         webView.scrollView.contentInsetAdjustmentBehavior = .automatic
         webView.scrollView.keyboardDismissMode = .interactive
-        if !settings.customUserAgent.isEmpty { webView.customUserAgent = settings.customUserAgent }
+        webView.customUserAgent = UserAgent.custom(for: settings, desktopMode: desktopMode)
         observe()
     }
 
@@ -203,6 +257,7 @@ final class BrowserTab: NSObject, ObservableObject, Identifiable {
 
     func toggleDesktopMode() {
         desktopMode.toggle()
+        webView.customUserAgent = UserAgent.custom(for: BrowserSettings.shared.data, desktopMode: desktopMode)
         if let url = webView.url {
             webView.load(URLRequest(url: url))
         }
@@ -226,7 +281,7 @@ final class BrowserTab: NSObject, ObservableObject, Identifiable {
     func reloadSettings() {
         let settings = BrowserSettings.shared.data
         webView.isInspectable = settings.webInspector
-        webView.customUserAgent = settings.customUserAgent.isEmpty ? nil : settings.customUserAgent
+        webView.customUserAgent = UserAgent.custom(for: settings, desktopMode: desktopMode)
         webView.configuration.preferences.javaScriptCanOpenWindowsAutomatically = !settings.blockPopups
     }
 

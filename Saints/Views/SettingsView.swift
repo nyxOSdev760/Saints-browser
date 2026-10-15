@@ -368,13 +368,28 @@ struct ContentSettings: View {
                 }
             }
             Section {
+                Picker("Identify As", selection: $settings.data.browserIdentity) {
+                    ForEach(BrowserIdentity.allCases) { Text($0.title).tag($0) }
+                }
+                Text(settings.data.customUserAgent.isEmpty
+                     ? UserAgent.string(for: settings.data.browserIdentity)
+                     : settings.data.customUserAgent)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            } header: {
+                Text("Browser Identity")
+            } footer: {
+                Text("What websites are told this browser is. Safari matches the engine SV Browser really uses, so sites work best with it. If a site says your browser isn't supported, try Chrome for iPhone for that site.")
+            }
+            Section {
                 Toggle("Request Desktop Sites", isOn: $settings.data.desktopByDefault)
-                TextField("Custom User Agent (optional)", text: $settings.data.customUserAgent, axis: .vertical)
+                TextField("Custom User Agent (overrides the above)", text: $settings.data.customUserAgent, axis: .vertical)
                     .font(.footnote.monospaced())
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
             } footer: {
-                Text("A custom user agent makes you easier to fingerprint. Leave empty to blend in with Safari.")
+                Text("A custom user agent makes you easier to fingerprint. Leave empty to use the identity above.")
             }
             Section {
                 Toggle("Web Inspector", isOn: $settings.data.webInspector)

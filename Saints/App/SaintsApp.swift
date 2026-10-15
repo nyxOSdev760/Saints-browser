@@ -76,6 +76,7 @@ enum AppBootstrap {
             || old.extensionsEnabled != new.extensionsEnabled
             || old.darkWebPages != new.darkWebPages
         let tabsChanged = old.webInspector != new.webInspector || old.customUserAgent != new.customUserAgent
+            || old.browserIdentity != new.browserIdentity
             || old.blockPopups != new.blockPopups
 
         if old.extensionsEnabled != new.extensionsEnabled {
@@ -89,7 +90,8 @@ enum AppBootstrap {
         } else if scriptsChanged || tabsChanged {
             TabManager.shared.refreshUserContent()
         }
-        if old.darkWebPages != new.darkWebPages || (new.darkWebPages == .followApp && old.theme != new.theme) {
+        if old.darkWebPages != new.darkWebPages || (new.darkWebPages == .followApp && old.theme != new.theme)
+            || old.browserIdentity != new.browserIdentity {
             // Re-render the current page so the change is visible immediately.
             TabManager.shared.selectedTab.flatMap { $0.showsHome ? nil : $0 }?.webView.reload()
         }
