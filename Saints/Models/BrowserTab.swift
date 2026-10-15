@@ -74,14 +74,33 @@ enum WebViewFactory {
     /// Appended to WebKit's own UA prefix so pages see exactly what Safari on this iOS version sends.
     static var safariSuffix: String { UserAgent.safariSuffix }
 
-    static let gpcScript = """
-    (function () {
-      try {
-        Object.defineProperty(Navigator.prototype, 'globalPrivacyControl', { get: () => true, configurable: true });
-        Object.defineProperty(Navigator.prototype, 'doNotTrack', { get: () => '1', configurable: true });
-      } catch (e) {}
-    })();
-    """
+    /// Bot-check / CAPTCHA providers. Nothing of ours is injected into these frames, because they inspect the
+    /// JavaScript environment and treat any modified built-in as a sign of an automated or fake browser.
+    static let verificationHosts = [
+        "challenges.cloudflare.com", "hcaptcha.com", "recaptcha.net", "gstatic.com", "arkoselabs.com",
+        "funcaptcha.com", "captcha-delivery.com", "perimeterx.net", "px-cdn.net", "px-cloud.net",
+        "kasada.io", "datadome.co", "geetest.com", "friendlycaptcha.com", "turnstile.com"
+    ]
+
+    /// JS guard: true on verification hosts (and Google's /recaptcha frames).
+    static var verificationGuard: String {
+        let list = verificationHosts.map { "'\($0)'" }.joined(separator: ",")
+        return "[\(list)].some((d) => location.hostname === d || location.hostname.endsWith('.' + d))"
+            + " || (location.hostname.endsWith('google.com') && location.pathname.startsWith('/recaptcha'))"
+    }
+
+    /// Global Privacy Control signal. Main frame only, never on verification pages. Safari has no
+    /// `doNotTrack`, so it is deliberately not faked (a fake value marks the browser as spoofed).
+    static var gpcScript: String {
+        """
+        (function () {
+          if (\(verificationGuard)) return;
+          try {
+            Object.defineProperty(Navigator.prototype, 'globalPrivacyControl', { get: () => true, configurable: true, enumerable: true });
+          } catch (e) {}
+        })();
+        """
+    }
 
     /// Darkens light pages. Pages that are already dark (or follow `prefers-color-scheme`) are left alone.
     static func darkPagesScript(always: Bool) -> String {
@@ -142,7 +161,7 @@ enum WebViewFactory {
         UBlockEngine.shared.install(into: controller)
         if BrowserSettings.shared.data.globalPrivacyControl {
             controller.addUserScript(WKUserScript(source: gpcScript, injectionTime: .atDocumentStart,
-                                                  forMainFrameOnly: false, in: .page))
+                                                  forMainFrameOnly: true, in: .page))
         }
         let darkMode = BrowserSettings.shared.data.darkWebPages
         if darkMode != .off {

@@ -310,12 +310,21 @@ enum UBlockConverter {
     // MARK: - Scriptlets
 
     /// Wraps uBO's scriptlet framework + per-ruleset scriptlets in a guard that skips allowlisted sites.
+    /// Bot-check providers: scriptlets never run in their frames (they flag any patched built-in).
+    static let verificationHosts = [
+        "challenges.cloudflare.com", "hcaptcha.com", "recaptcha.net", "gstatic.com", "arkoselabs.com",
+        "funcaptcha.com", "captcha-delivery.com", "perimeterx.net", "px-cdn.net", "px-cloud.net",
+        "kasada.io", "datadome.co", "geetest.com", "friendlycaptcha.com", "turnstile.com"
+    ]
+
     static func scriptletBundle(_ body: String, allowlist: [String]) -> String {
-        let list = (try? JSONSerialization.data(withJSONObject: allowlist)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        let list = (try? JSONSerialization.data(withJSONObject: allowlist + verificationHosts))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
         return """
         (function () {
           const h = location.hostname;
           if (\(list).some((d) => h === d || h.endsWith('.' + d))) return;
+          if (h.endsWith('google.com') && location.pathname.startsWith('/recaptcha')) return;
         \(body)
         })();
         """

@@ -97,28 +97,16 @@ struct HomePageView: View {
             WallpaperView(isPrivate: tab.isPrivate)
                 .onTapGesture { fieldFocused = false }
             ScrollView {
-                VStack(spacing: 0) {
-                    if !fieldFocused {
-                        header
-                            .padding(.top, 48)
-                            .padding(.bottom, 26)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-                    searchField
-                        .padding(.top, fieldFocused ? 12 : 0)
-                    if fieldFocused {
-                        suggestions.padding(.top, 14)
-                    } else {
-                        VStack(spacing: 28) {
-                            if tab.isPrivate { privateNote }
-                            if settings.data.showFavorites && !library.favorites.isEmpty { favorites }
-                            if settings.data.showRecent && !tab.isPrivate && !recent.isEmpty { recentSection }
-                            if settings.data.showPrivacyStats && !tab.isPrivate { privacyLine }
-                        }
-                        .padding(.top, 30)
-                        .padding(.bottom, 30)
-                    }
+                // The address bar is the one search field; the start page just shows shortcuts.
+                VStack(spacing: 28) {
+                    if settings.data.showGreeting { header }
+                    if tab.isPrivate { privateNote }
+                    if settings.data.showFavorites && !library.favorites.isEmpty { favorites }
+                    if settings.data.showRecent && !tab.isPrivate && !recent.isEmpty { recentSection }
+                    if settings.data.showPrivacyStats && !tab.isPrivate { privacyLine }
                 }
+                .padding(.top, settings.data.showGreeting ? 48 : 28)
+                .padding(.bottom, 30)
                 .padding(.horizontal, 18)
                 .frame(maxWidth: 620)
                 .frame(maxWidth: .infinity)

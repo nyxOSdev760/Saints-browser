@@ -287,7 +287,7 @@ struct SettingsData: Codable, Equatable {
     var textSize: TextSizeOption = .standard
     var toolbarIconWeight: IconWeight = .regular
     var toolbarLabels: Bool = false
-    var centerAddress: Bool = true
+    var centerAddress: Bool = false
 
     // Toolbar
     var toolbarItems: [ToolbarAction] = [.back, .forward, .share, .tabs, .menu]
@@ -331,7 +331,9 @@ struct SettingsData: Codable, Equatable {
     var blockCookieBanners: Bool = true
     var httpsOnly: Bool = true
     var stripTrackingParams: Bool = true
-    var globalPrivacyControl: Bool = true
+    var globalPrivacyControl: Bool = false
+    /// Bumped when a compatibility default changes.
+    var compatVersion: Int = 1
     var blockPopups: Bool = true
     var javaScriptEnabled: Bool = true
     var saveHistory: Bool = true
@@ -415,6 +417,9 @@ struct SettingsData: Codable, Equatable {
         httpsOnly = v(.httpsOnly, httpsOnly)
         stripTrackingParams = v(.stripTrackingParams, stripTrackingParams)
         globalPrivacyControl = v(.globalPrivacyControl, globalPrivacyControl)
+        let compatBefore = v(.compatVersion, 0)
+        if compatBefore < 1 { globalPrivacyControl = false }
+        compatVersion = 1
         blockPopups = v(.blockPopups, blockPopups)
         javaScriptEnabled = v(.javaScriptEnabled, javaScriptEnabled)
         saveHistory = v(.saveHistory, saveHistory)
@@ -427,6 +432,7 @@ struct SettingsData: Codable, Equatable {
         browserIdentity = v(.browserIdentity, browserIdentity)
         extensionsEnabled = v(.extensionsEnabled, extensionsEnabled)
         interceptExtensionDownloads = v(.interceptExtensionDownloads, interceptExtensionDownloads)
+        if compatBefore < 1 { centerAddress = false }
         if migrateToV3 {
             // SV Browser rename: plain blue accent, floating glass bars, no greeting by default.
             if accentHex == "#7F53AC" { accentHex = "#0A84FF" }

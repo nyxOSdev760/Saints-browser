@@ -326,7 +326,7 @@ struct PrivacySettings: View {
                 Toggle("Remove Tracking From Links", isOn: $settings.data.stripTrackingParams)
                 Toggle("Global Privacy Control", isOn: $settings.data.globalPrivacyControl)
             } header: { Text("Protection") } footer: {
-                Text("Blocking uses WebKit's built-in content blocker, so it's fast and private — nothing is checked against a server.")
+                Text("Blocking uses WebKit's built-in content blocker, so it's fast and private — nothing is checked against a server. Global Privacy Control changes a browser property that some \"verify you're human\" checks dislike; turn it off if a site won't let you in.")
             }
             Section("Security") {
                 Toggle("HTTPS-Only Mode", isOn: $settings.data.httpsOnly)

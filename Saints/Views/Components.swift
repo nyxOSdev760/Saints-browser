@@ -163,6 +163,29 @@ struct BarBackground: View {
     }
 }
 
+/// The search-field look shared by the address bar (and formerly the start page field).
+struct SearchFieldBackground: View {
+    let radius: CGFloat
+    var focused = false
+    var isPrivate = false
+    @EnvironmentObject var settings: BrowserSettings
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        ZStack {
+            if settings.data.barMaterial == .glass {
+                GlassSurface(shape: shape, isPrivate: isPrivate)
+            } else {
+                shape
+                    .fill(isPrivate ? Color.white.opacity(0.12) : Color(uiColor: .secondarySystemBackground))
+                    .shadow(color: .black.opacity(0.06), radius: 10, y: 3)
+            }
+        }
+        .overlay(shape.strokeBorder(focused ? settings.accent : Color.primary.opacity(0.07), lineWidth: focused ? 2 : 1))
+        .animation(.easeOut(duration: 0.15), value: focused)
+    }
+}
+
 struct FieldBackground: View {
     @EnvironmentObject var settings: BrowserSettings
     var isPrivate: Bool

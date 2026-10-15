@@ -19,10 +19,11 @@ struct AddressBar: View {
     @State private var dragLift: CGFloat = 0
 
     private var isEditing: Bool { focused.wrappedValue }
-    private var height: CGFloat { settings.data.compactBars ? 38 : 46 }
+    private var height: CGFloat { settings.data.compactBars ? 44 : 52 }
+    private var radius: CGFloat { min(height / 2, settings.data.searchFieldRoundness) }
 
     private var displayText: String {
-        guard let url = tab.url else { return "Search with DuckDuckGo" }
+        guard let url = tab.url else { return "Search or enter address" }
         if let q = SearchEngine.query(from: url) { return q }
         if settings.data.showFullURL { return url.absoluteString }
         var host = url.host ?? url.absoluteString
@@ -31,14 +32,10 @@ struct AddressBar: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             ZStack(alignment: .bottom) {
-                HStack(spacing: 6) {
-                    if isEditing {
-                        Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    } else {
-                        pageMenu
-                    }
+                HStack(spacing: 10) {
+                    leadingIcon
                     ZStack {
                         // The field always exists so it can take focus the moment the bar is tapped.
                         TextField("Search or enter address", text: $text)
@@ -52,20 +49,13 @@ struct AddressBar: View {
                             .allowsHitTesting(isEditing)
                         if !isEditing {
                             Button(action: beginEditing) {
-                                HStack(spacing: 5) {
-                                    if tab.url?.scheme == "https" {
-                                        Image(systemName: "lock.fill").font(.caption2).foregroundStyle(.secondary)
-                                    } else if tab.url?.scheme == "http" {
-                                        Image(systemName: "exclamationmark.triangle.fill").font(.caption2).foregroundStyle(.orange)
-                                    }
-                                    Text(displayText)
-                                        .lineLimit(1)
-                                        .truncationMode(.middle)
-                                        .foregroundStyle(tab.url == nil ? Color.secondary : Color.primary)
-                                }
-                                .frame(maxWidth: .infinity, maxHeight: .infinity,
-                                       alignment: settings.data.centerAddress ? .center : .leading)
-                                .contentShape(Rectangle())
+                                Text(displayText)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                    .foregroundStyle(tab.url == nil ? Color.secondary : Color.primary)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity,
+                                           alignment: settings.data.centerAddress ? .center : .leading)
+                                    .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                         }
@@ -74,17 +64,19 @@ struct AddressBar: View {
                         if !text.isEmpty {
                             Button { text = "" } label: {
                                 Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
-                                    .frame(width: 28, height: 28)
+                                    .frame(width: 30, height: 30)
                             }
                             .buttonStyle(.plain)
                         }
-                    } else {
+                    } else if tab.url != nil {
                         reloadButton
+                        pageMenu
                     }
                 }
-                .padding(.horizontal, 10)
+                .padding(.leading, 16)
+                .padding(.trailing, isEditing || tab.url == nil ? 16 : 6)
                 .frame(height: height)
-                .background(FieldBackground(isPrivate: tab.isPrivate))
+                .background(SearchFieldBackground(radius: radius, focused: isEditing, isPrivate: tab.isPrivate))
 
                 if settings.data.showProgressBar && tab.isLoading && !isEditing {
                     GeometryReader { geo in
@@ -94,7 +86,8 @@ struct AddressBar: View {
                             .animation(.easeOut(duration: 0.2), value: tab.progress)
                     }
                     .frame(height: 2.5)
-                    .padding(.horizontal, settings.data.barCornerRadius / 2)
+                    .padding(.horizontal, radius)
+                    .transition(.opacity)
                 }
             }
             .offset(x: dragOffset, y: min(0, dragLift))
@@ -111,6 +104,21 @@ struct AddressBar: View {
             }
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: isEditing)
+    }
+
+    /// Magnifying glass like the start-page field; a lock / warning once a page is open.
+    @ViewBuilder private var leadingIcon: some View {
+        if isEditing || tab.url == nil {
+            Image(systemName: "magnifyingglass")
+                .font(.body.weight(.medium))
+                .foregroundStyle(.secondary)
+        } else if tab.url?.scheme == "http" {
+            Image(systemName: "exclamationmark.triangle.fill").font(.footnote).foregroundStyle(.orange)
+        } else if tab.isPrivate {
+            Image(systemName: "eyeglasses").font(.footnote.weight(.semibold)).foregroundStyle(.purple)
+        } else {
+            Image(systemName: "lock.fill").font(.footnote).foregroundStyle(.secondary)
+        }
     }
 
     private func beginEditing() {
@@ -180,7 +188,8 @@ struct AddressBar: View {
                 Image(systemName: tab.isLoading ? "xmark" : "arrow.clockwise")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 28, height: 28)
+                    .frame(width: 32, height: 34)
+                    .contentShape(Rectangle())
             }
         }
     }
@@ -227,10 +236,11 @@ struct AddressBar: View {
             }
             Button { onShowExtensions() } label: { Label("Manage Extensions", systemImage: "puzzlepiece.extension.fill") }
         } label: {
-            Image(systemName: tab.isPrivate ? "eyeglasses" : (extensions.activeExtensions.isEmpty ? "textformat.size" : "puzzlepiece.extension"))
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(tab.isPrivate ? Color.purple : Color.secondary)
-                .frame(width: 28, height: 28)
+            Image(systemName: "ellipsis.circle")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .frame(width: 34, height: 34)
+                .contentShape(Rectangle())
         }
     }
 }
