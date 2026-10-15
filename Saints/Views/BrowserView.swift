@@ -110,6 +110,10 @@ struct BrowserView: View {
             tabs.pendingExtensionFile = nil
             stage(file: file)
         }
+        .task {
+            await ScreenshotDriver.run(showTabs: { tab.captureSnapshot { showTabs = true } },
+                                       showSheet: { sheet = $0 })
+        }
         .onChange(of: addressFocused) { focused in
             if focused && addressText.isEmpty, let url = tab.url {
                 addressText = SearchEngine.query(from: url) ?? url.absoluteString

@@ -1,0 +1,76 @@
+name: Screenshots
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master, main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: screenshots
+  cancel-in-progress: true
+
+jobs:
+  screenshots:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build for the iOS Simulator
+        run: |
+          brew install xcodegen
+          xcodegen generate
+          xcodebuild -project Saints.xcodeproj -scheme Saints -configuration Release \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build > build.log 2>&1 || { grep -E "error:" build.log | sort -u; exit 1; }
+
+      - name: Boot simulator
+        run: |
+          xcrun simctl list runtimes
+          UDID=$(xcrun simctl create Shots "iPhone 16 Pro")
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged --batteryLevel 100 \
+            --cellularMode active --cellularBars 4 --wifiBars 3 --dataNetwork wifi
+          xcrun simctl install "$UDID" build/Build/Products/Release-iphonesimulator/Saints.app
+
+      - name: Capture screens
+        run: |
+          mkdir -p shots
+          shot() {   # shot <file> <appearance> <mode> <seconds>
+            xcrun simctl ui "$UDID" appearance "$2"
+            xcrun simctl terminate "$UDID" com.saints.browser >/dev/null 2>&1 || true
+            xcrun simctl launch "$UDID" com.saints.browser -saintsShot "$3"
+            sleep "$4"
+            xcrun simctl io "$UDID" screenshot "shots/$1.png"
+            echo "captured $1"
+          }
+          shot 0-warmup   light home 25      # first launch downloads uBlock Origin lists
+          shot 1-home     light home 8
+          shot 2-home-dark dark home 8
+          shot 3-page     light page 12
+          shot 4-tabs     light tabs 40
+          shot 5-menu     dark  menu 15
+          shot 6-customize light customize 8
+          shot 7-wallpaper dark wallpaper 8
+          rm shots/0-warmup.png
+          ls -l shots
+
+      - name: Upload screenshots artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: shots/*.png
+
+      - name: Publish screenshots release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: screenshots
+          name: Screenshots
+          body: Simulator screenshots of the latest Saints build (${{ github.sha }}).
+          prerelease: true
+          make_latest: false
+          files: shots/*.png
