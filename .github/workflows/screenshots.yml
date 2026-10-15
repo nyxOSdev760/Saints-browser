@@ -46,7 +46,11 @@ jobs:
             xcrun simctl launch "$UDID" com.saints.browser -saintsShot "$3"
             sleep "$4"
             xcrun simctl io "$UDID" screenshot "shots/$1.png"
-            echo "captured $1"
+            if xcrun simctl spawn "$UDID" launchctl list | grep -q com.saints.browser; then
+              echo "captured $1 (app running)"
+            else
+              echo "::warning::Saints was not running when capturing $1"
+            fi
           }
           shot 0-warmup   light home 25      # first launch downloads uBlock Origin lists
           shot 1-home     light home 8
@@ -58,6 +62,31 @@ jobs:
           shot 7-wallpaper dark wallpaper 8
           rm shots/0-warmup.png
           ls -l shots
+
+      - name: Crash reports
+        if: always()
+        run: |
+          ls -la ~/Library/Logs/DiagnosticReports/ 2>/dev/null | grep -i saints || echo "no Saints crash reports"
+          for f in ~/Library/Logs/DiagnosticReports/Saints*.ips; do
+            [ -f "$f" ] || continue
+            echo "===== $f"
+            python3 - "$f" <<'PY'
+          import json, sys
+          text = open(sys.argv[1]).read()
+          body = json.loads(text[text.index('\n') + 1:])
+          print("exception:", body.get("exception"))
+          print("termination:", body.get("termination"))
+          for k in ("asi", "lastExceptionBacktrace"):
+              if body.get(k): print(k, json.dumps(body[k])[:3000])
+          images = body.get("usedImages", [])
+          for t in body.get("threads", []):
+              if not t.get("triggered"): continue
+              print("crashed thread:", t.get("name") or t.get("queue"))
+              for fr in t.get("frames", [])[:45]:
+                  img = images[fr["imageIndex"]]["name"] if fr.get("imageIndex", -1) < len(images) else "?"
+                  print("  ", img, fr.get("symbol", hex(fr.get("imageOffset", 0))), fr.get("sourceFile", ""), fr.get("sourceLine", ""))
+          PY
+          done
 
       - name: Upload screenshots artifact
         uses: actions/upload-artifact@v4

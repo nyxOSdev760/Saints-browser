@@ -228,11 +228,11 @@ struct HomePreview: View {
                 .frame(height: 30)
                 .background(RoundedRectangle(cornerRadius: min(14, settings.data.searchFieldRoundness * 0.6), style: .continuous).fill(.regularMaterial))
                 .padding(.horizontal, 22)
-                HStack(spacing: 12) {
+                HStack(spacing: 9) {
                     ForEach(0..<4) { _ in
-                        RoundedRectangle(cornerRadius: 30 * settings.data.favoriteShape.cornerFraction, style: .continuous)
+                        RoundedRectangle(cornerRadius: 24 * settings.data.favoriteShape.cornerFraction, style: .continuous)
                             .fill(.regularMaterial)
-                            .frame(width: 30, height: 30)
+                            .frame(width: 24, height: 24)
                     }
                 }
             }
