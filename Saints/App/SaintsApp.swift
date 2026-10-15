@@ -57,6 +57,7 @@ enum AppBootstrap {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: boot)
 
+        UserAgent.learnWebKitPrefix()
         ExtensionManager.shared.compileRulesets()
         ExtensionHost.shared.refreshBackgrounds()
 

@@ -22,8 +22,21 @@ enum UserAgent {
 
     static var safariSuffix: String { "Version/\(safariVersion) Mobile/15E148 Safari/604.1" }
 
+    private static let prefixKey = "saints.webkitUAPrefix"
+
+    /// Reads WebKit's own UA once so other identities reuse its exact device/OS token.
+    static func learnWebKitPrefix() {
+        let probe = WKWebView(frame: .zero)
+        probe.evaluateJavaScript("navigator.userAgent") { value, _ in
+            guard let ua = value as? String, let end = ua.range(of: "(KHTML, like Gecko)") else { return }
+            UserDefaults.standard.set(String(ua[..<end.upperBound]), forKey: prefixKey)
+            _ = probe   // keep the probe alive until the callback runs
+        }
+    }
+
     private static var devicePrefix: String {
-        UIDevice.current.userInterfaceIdiom == .pad
+        if let learned = UserDefaults.standard.string(forKey: prefixKey) { return learned }
+        return UIDevice.current.userInterfaceIdiom == .pad
             ? "Mozilla/5.0 (iPad; CPU OS \(osToken) like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko)"
             : "Mozilla/5.0 (iPhone; CPU iPhone OS \(osToken) like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko)"
     }
