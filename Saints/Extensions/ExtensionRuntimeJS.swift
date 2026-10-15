@@ -359,7 +359,8 @@ enum ExtensionRuntimeJS {
 """#
 
     /// Wraps one content-script entry so it only runs on matching URLs.
-    static func contentScript(extID: String, include: [String], exclude: [String], css: String, js: String, waitForGM: Bool) -> String {
+    static func contentScript(extID: String, include: [String], exclude: [String], css: String, js: String,
+                              skipHosts: [String] = [], waitForGM: Bool) -> String {
         func jsArray(_ items: [String]) -> String {
             let data = (try? JSONSerialization.data(withJSONObject: items)) ?? Data("[]".utf8)
             return String(data: data, encoding: .utf8) ?? "[]"
@@ -375,6 +376,7 @@ enum ExtensionRuntimeJS {
           const __test = (list) => list.some((r) => { try { return new RegExp(r).test(__href); } catch (e) { return false; } });
           if (!__test(\(jsArray(include)))) return;
           if (__test(\(jsArray(exclude)))) return;
+          if (\(jsArray(skipHosts)).some((d) => location.hostname === d || location.hostname.endsWith('.' + d))) return;
 
         """
         if !css.isEmpty {

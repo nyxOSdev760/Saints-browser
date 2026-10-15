@@ -126,6 +126,9 @@ final class ExtensionManager: ObservableObject {
         changed(id)
     }
 
+    /// Rebuild content scripts (e.g. after the protections-off list changes).
+    func invalidateScripts() { scriptCache.removeAll() }
+
     private func changed(_ id: String) {
         scriptCache.removeValue(forKey: id)
         messagesCache.removeValue(forKey: id)
@@ -607,6 +610,7 @@ final class ExtensionManager: ObservableObject {
             let pageWorld = cs.world.uppercased() == "MAIN"
             let source = ExtensionRuntimeJS.contentScript(
                 extID: ext.id, include: include, exclude: exclude, css: css, js: js,
+                skipHosts: UBlockEngine.shared.state.allowlist,
                 waitForGM: ext.kind == .userScript && !pageWorld)
             let time: WKUserScriptInjectionTime = (cs.runAt == "document_start" || !css.isEmpty && js.isEmpty) ? .atDocumentStart : .atDocumentEnd
             result.append(CachedScript(source: source, time: time, mainFrameOnly: !cs.allFrames, pageWorld: pageWorld))

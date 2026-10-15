@@ -60,7 +60,13 @@ enum UserAgent {
 
     /// The `customUserAgent` to set on a web view, or nil to let WebKit send its native Safari string
     /// (WebKit then also switches correctly between the mobile and desktop Safari strings).
-    static func custom(for settings: SettingsData, desktopMode: Bool) -> String? {
+    static func custom(for settings: SettingsData, desktopMode: Bool, host: String? = nil) -> String? {
+        // A per-site choice wins over the global identity and custom string.
+        if let site = SiteSettings.shared.identity(for: host) {
+            if site == .safari { return nil }
+            if desktopMode && !site.isDesktop { return nil }
+            return string(for: site)
+        }
         let custom = settings.customUserAgent.trimmingCharacters(in: .whitespacesAndNewlines)
         if !custom.isEmpty { return custom }
         let identity = settings.browserIdentity
@@ -94,7 +100,7 @@ enum WebViewFactory {
     static var gpcScript: String {
         """
         (function () {
-          if (\(verificationGuard)) return;
+          if (\(verificationGuard) || \(SiteSettings.offGuardJS)) return;
           try {
             Object.defineProperty(Navigator.prototype, 'globalPrivacyControl', { get: () => true, configurable: true, enumerable: true });
           } catch (e) {}
@@ -106,7 +112,7 @@ enum WebViewFactory {
     static func darkPagesScript(always: Bool) -> String {
         """
         (function () {
-          if (window.__saintsDark) return;
+          if (window.__saintsDark || \(SiteSettings.offGuardJS)) return;
           window.__saintsDark = true;
           const always = \(always);
           const css = 'html{filter:invert(0.9) hue-rotate(180deg)!important;background:#fff!important}' +
@@ -224,7 +230,7 @@ final class BrowserTab: NSObject, ObservableObject, Identifiable {
         webView.pageZoom = zoom
         webView.scrollView.contentInsetAdjustmentBehavior = .automatic
         webView.scrollView.keyboardDismissMode = .interactive
-        webView.customUserAgent = UserAgent.custom(for: settings, desktopMode: desktopMode)
+        webView.customUserAgent = UserAgent.custom(for: settings, desktopMode: desktopMode, host: url?.host)
         observe()
     }
 
@@ -289,7 +295,7 @@ final class BrowserTab: NSObject, ObservableObject, Identifiable {
 
     func toggleDesktopMode() {
         desktopMode.toggle()
-        webView.customUserAgent = UserAgent.custom(for: BrowserSettings.shared.data, desktopMode: desktopMode)
+        webView.customUserAgent = UserAgent.custom(for: BrowserSettings.shared.data, desktopMode: desktopMode, host: url?.host)
         if let url = webView.url {
             webView.load(URLRequest(url: url))
         }
@@ -313,7 +319,7 @@ final class BrowserTab: NSObject, ObservableObject, Identifiable {
     func reloadSettings() {
         let settings = BrowserSettings.shared.data
         webView.isInspectable = settings.webInspector
-        webView.customUserAgent = UserAgent.custom(for: settings, desktopMode: desktopMode)
+        webView.customUserAgent = UserAgent.custom(for: settings, desktopMode: desktopMode, host: url?.host)
         webView.configuration.preferences.javaScriptCanOpenWindowsAutomatically = !settings.blockPopups
     }
 
@@ -414,6 +420,18 @@ extension BrowserTab: WKNavigationDelegate {
                 PrivacyStats.shared.addUpgrade()
                 decisionHandler(.cancel, preferences)
                 webView.load(URLRequest(url: secure))
+                return
+            }
+        }
+
+        // Per-site identity: make sure this navigation goes out with the right User-Agent.
+        if isMainFrame, scheme.hasPrefix("http"), (navigationAction.request.httpMethod ?? "GET") == "GET" {
+            let desired = UserAgent.custom(for: settings, desktopMode: desktopMode, host: url.host)
+            let current = (webView.customUserAgent ?? "").isEmpty ? nil : webView.customUserAgent
+            if current != desired {
+                webView.customUserAgent = desired
+                decisionHandler(.cancel, preferences)
+                webView.load(navigationAction.request)
                 return
             }
         }

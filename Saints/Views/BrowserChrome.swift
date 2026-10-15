@@ -211,18 +211,45 @@ struct AddressBar: View {
                     Label("Find on Page", systemImage: "doc.text.magnifyingglass")
                 }
             }
-            if ublock.state.enabled, let host = tab.url?.host {
-                Section("uBlock Origin") {
+            if let host = tab.url?.host {
+                Section(SiteSettings.key(host)) {
                     Button {
                         settings.haptic(.medium)
                         let target = tab
                         ublock.toggleAllowlist(host) { [weak target] in target?.webView.reload() }
                     } label: {
                         if ublock.isAllowlisted(host) {
-                            Label("Turn On for This Site", systemImage: "shield.fill")
+                            Label("Turn On Protections", systemImage: "shield.fill")
                         } else {
-                            Label("Turn Off for This Site", systemImage: "shield.slash")
+                            Label("Turn Off Protections", systemImage: "shield.slash")
                         }
+                    }
+                    Menu {
+                        let current = SiteSettings.shared.identity(for: host)
+                        Button {
+                            SiteSettings.shared.setIdentity(nil, for: host)
+                            tab.webView.reload()
+                        } label: {
+                            if current == nil {
+                                Label("Default (\(settings.data.browserIdentity.title))", systemImage: "checkmark")
+                            } else {
+                                Text("Default (\(settings.data.browserIdentity.title))")
+                            }
+                        }
+                        ForEach(BrowserIdentity.allCases) { identity in
+                            Button {
+                                SiteSettings.shared.setIdentity(identity, for: host)
+                                tab.webView.reload()
+                            } label: {
+                                if current == identity {
+                                    Label(identity.title, systemImage: "checkmark")
+                                } else {
+                                    Text(identity.title)
+                                }
+                            }
+                        }
+                    } label: {
+                        Label("Identify As…", systemImage: "person.text.rectangle")
                     }
                 }
             }

@@ -93,7 +93,8 @@ final class ContentBlocker: ObservableObject {
 
     // MARK: Compilation
 
-    func compileBuiltIns(settings: SettingsData, completion: (() -> Void)? = nil) {
+    func compileBuiltIns(settings: SettingsData, force: Bool = false, completion: (() -> Void)? = nil) {
+        let offRule = UBlockConverter.allowlistRule(UBlockEngine.shared.state.allowlist)
         let group = DispatchGroup()
         let specs: [(String, Bool, () -> [[String: Any]])] = [
             ("saints.trackers.v1", settings.blockTrackers, { Self.blockRules(for: Self.trackerDomains) }),
@@ -105,9 +106,9 @@ final class ContentBlocker: ObservableObject {
                 lists.removeValue(forKey: identifier)
                 continue
             }
-            if lists[identifier] != nil { continue }
+            if lists[identifier] != nil && !force { continue }
             group.enter()
-            compile(identifier: identifier, rules: build()) { group.leave() }
+            compile(identifier: identifier, rules: build() + (offRule.map { [$0] } ?? [])) { group.leave() }
         }
         group.notify(queue: .main) { completion?() }
     }

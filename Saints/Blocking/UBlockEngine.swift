@@ -183,13 +183,23 @@ final class UBlockEngine: ObservableObject {
         }
         guardedCache = nil
         afterInstall = then
+        protectionsChanged()
         if state.enabled { compileAll() } else { then?() }
     }
 
     func removeFromAllowlist(_ host: String) {
         state.allowlist.removeAll { $0 == host }
         guardedCache = nil
+        protectionsChanged()
         if state.enabled { compileAll() }
+    }
+
+    /// The allowlist doubles as "protections off" for the built-in blockers, scripts and extensions.
+    private func protectionsChanged() {
+        ExtensionManager.shared.invalidateScripts()
+        ContentBlocker.shared.compileBuiltIns(settings: BrowserSettings.shared.data, force: true) {
+            TabManager.shared.refreshUserContent()
+        }
     }
 
     // MARK: Scriptlets
