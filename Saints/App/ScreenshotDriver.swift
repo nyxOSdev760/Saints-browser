@@ -11,6 +11,7 @@ enum ScreenshotDriver {
         return args[i + 1]
     }
 
+    @MainActor
     static func run(showTabs: @escaping () -> Void, showSheet: @escaping (BrowserSheet) -> Void) async {
         guard !ran, let mode else { return }
         ran = true
