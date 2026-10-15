@@ -98,7 +98,7 @@ struct MenuSheet: View {
                 .padding(.vertical, 12)
             }
             .background(Color(uiColor: .systemGroupedBackground))
-            .navigationTitle("Saints")
+            .navigationTitle("SV Browser")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
@@ -140,7 +140,7 @@ struct MenuSheet: View {
             .padding(.vertical, 10)
             .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle(scale: 0.93))
     }
 
     private func pageHeader(_ url: URL) -> some View {
@@ -178,7 +178,7 @@ struct MenuSheet: View {
             .frame(height: 70)
             .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle(scale: 0.93))
         .disabled(disabled)
         .opacity(disabled ? 0.4 : 1)
     }
@@ -210,7 +210,7 @@ struct ExtensionIcon: View {
                     .font(.system(size: size * 0.42))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(settings.accent.gradient)
+                    .background(settings.accent)
             }
         }
         .frame(width: size, height: size)

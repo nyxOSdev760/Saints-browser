@@ -99,7 +99,7 @@ jobs:
         with:
           tag_name: screenshots
           name: Screenshots
-          body: Simulator screenshots of the latest Saints build (${{ github.sha }}).
+          body: Simulator screenshots of the latest SV Browser build (${{ github.sha }}).
           prerelease: true
           make_latest: false
           files: shots/*.png

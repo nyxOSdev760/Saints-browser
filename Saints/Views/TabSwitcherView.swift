@@ -155,7 +155,7 @@ struct TabSwitcherView: View {
             Spacer()
             if showingPrivate {
                 Text("Private Browsing").font(.title2.weight(.bold))
-                Text("Saints won't remember the pages you visit, your search history or AutoFill information after you close a private tab.")
+                Text("SV Browser won't remember the pages you visit, your search history or AutoFill information after you close a private tab.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -339,8 +339,6 @@ private struct SafariTabCard: View {
             ZStack {
                 WallpaperView(isPrivate: tab.isPrivate, preview: true)
                 VStack(spacing: 10) {
-                    SaintsLogo(size: 18)
-                        .foregroundStyle(settings.data.wallpaper == .none && !tab.isPrivate ? Color.primary : Color.white)
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(.regularMaterial)
                         .frame(height: 16)

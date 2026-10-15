@@ -30,10 +30,7 @@ struct RootView: View {
             if let tab = tabs.selectedTab {
                 BrowserView(tab: tab)
             } else {
-                ZStack {
-                    WallpaperView()
-                    SaintsLogo(size: 54).foregroundStyle(.white)
-                }
+                WallpaperView()
             }
             if let toast = toasts.current {
                 ToastView(toast: toast)
@@ -64,24 +61,19 @@ struct BrowserView: View {
     @State private var sheet: BrowserSheet?
     @State private var confirmBurn = false
     @State private var homeSearching = false
+    @State private var topChromeHeight: CGFloat = 0
+    @State private var bottomChromeHeight: CGFloat = 0
 
     private var isTop: Bool { settings.data.barPosition == .top }
     private var collapsed: Bool { tab.chromeCollapsed && !addressFocused && !tab.showsHome }
+    private var isGlass: Bool { settings.data.barMaterial == .glass }
+    private var pageBackground: Color { settings.data.theme == .black ? .black : Color(uiColor: .systemBackground) }
 
     var body: some View {
         ZStack {
-            VStack(spacing: 0) {
-                if isTop && !homeSearching { topChrome }
-                content
-                if homeSearching {
-                    EmptyView()
-                } else if !isTop {
-                    bottomChromeSafari
-                } else if !collapsed && !addressFocused {
-                    toolbarOnly
-                }
+            Group {
+                if isGlass { floatingLayout } else { dockedLayout }
             }
-            .background((settings.data.theme == .black ? Color.black : Color(uiColor: .systemBackground)).ignoresSafeArea())
             .sheet(item: $sheet) { sheetView($0) }
 
             if showTabs {
@@ -92,7 +84,8 @@ struct BrowserView: View {
             }
         }
         .animation(.spring(response: 0.32, dampingFraction: 0.86), value: showTabs)
-        .animation(.easeInOut(duration: 0.22), value: collapsed)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: collapsed)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: addressFocused)
         .animation(.easeInOut(duration: 0.2), value: homeSearching)
         .sheet(item: $host.presentedPage) { page in
             ExtensionPageSheet(page: page)
@@ -123,39 +116,165 @@ struct BrowserView: View {
 
     // MARK: Layout pieces
 
-    @ViewBuilder private var content: some View {
-        ZStack(alignment: .bottom) {
-            WebViewContainer(webView: tab.webView)
+    // MARK: Layouts
+
+    /// Classic layout: bars docked above/below the page.
+    private var dockedLayout: some View {
+        VStack(spacing: 0) {
+            if isTop && !homeSearching { topChrome }
+            content(floating: false)
+            if homeSearching {
+                EmptyView()
+            } else if !isTop {
+                bottomChromeSafari
+            } else if !collapsed && !addressFocused {
+                toolbarOnly
+            }
+        }
+        .background(pageBackground.ignoresSafeArea())
+    }
+
+    /// Glass layout: the page fills the screen and the bars float over it.
+    private var floatingLayout: some View {
+        ZStack {
+            pageBackground.ignoresSafeArea()
+            content(floating: true)
+            VStack(spacing: 0) {
+                if isTop && !homeSearching {
+                    floatingTop
+                        .background(GeometryReader { Color.clear.preference(key: TopChromeKey.self, value: $0.size.height) })
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+                Spacer(minLength: 0)
+                if !homeSearching {
+                    floatingBottom
+                        .background(GeometryReader { Color.clear.preference(key: BottomChromeKey.self, value: $0.size.height) })
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+        }
+        .onPreferenceChange(TopChromeKey.self) { topChromeHeight = $0 }
+        .onPreferenceChange(BottomChromeKey.self) { bottomChromeHeight = $0 }
+    }
+
+    private var floatingBottom: some View {
+        VStack(spacing: 8) {
+            if collapsed {
+                collapsedPill
+            } else {
+                if !isTop {
+                    if settings.data.showTabStrip && !addressFocused {
+                        TabStrip(isPrivate: tab.isPrivate)
+                            .padding(.vertical, 4)
+                            .background(GlassSurface(shape: Capsule(), isPrivate: tab.isPrivate))
+                    }
+                    addressBar
+                }
+                if !addressFocused {
+                    BrowserToolbar(tab: tab, perform: perform)
+                        .padding(.horizontal, 6)
+                        .background(GlassSurface(shape: Capsule(), isPrivate: tab.isPrivate))
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.bottom, addressFocused ? 8 : 2)
+        .if(tab.isPrivate) { $0.environment(\.colorScheme, .dark) }
+    }
+
+    private var floatingTop: some View {
+        VStack(spacing: 8) {
+            if collapsed {
+                collapsedPill
+            } else {
+                if settings.data.showTabStrip {
+                    TabStrip(isPrivate: tab.isPrivate)
+                        .padding(.vertical, 4)
+                        .background(GlassSurface(shape: Capsule(), isPrivate: tab.isPrivate))
+                }
+                addressBar
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 4)
+        .if(tab.isPrivate) { $0.environment(\.colorScheme, .dark) }
+    }
+
+    /// The minimised bar shown while scrolling.
+    private var collapsedPill: some View {
+        Button {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { tab.chromeCollapsed = false }
+        } label: {
+            HStack(spacing: 5) {
+                if tab.url?.scheme == "https" { Image(systemName: "lock.fill").font(.system(size: 10)) }
+                Text(tab.url?.host.map { $0.hasPrefix("www.") ? String($0.dropFirst(4)) : $0 } ?? "")
+                    .font(.footnote.weight(.semibold))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 16)
+            .frame(height: 34)
+            .background(GlassSurface(shape: Capsule(), isPrivate: tab.isPrivate))
+        }
+        .buttonStyle(PressableStyle(scale: 0.94))
+        .transition(.scale(scale: 0.7).combined(with: .opacity))
+    }
+
+    /// Slide pages sideways when swiping between tabs; fade otherwise.
+    private var tabTransition: AnyTransition {
+        switch tabs.switchDirection {
+        case 1: return .asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading))
+        case -1: return .asymmetric(insertion: .move(edge: .leading), removal: .move(edge: .trailing))
+        default: return .opacity
+        }
+    }
+
+    // MARK: Page content
+
+    private func content(floating: Bool) -> some View {
+        let top = floating && isTop ? topChromeHeight : 0
+        let bottom = floating ? bottomChromeHeight : 0
+        let webEdges: Edge.Set = floating ? (isTop ? [.top, .bottom] : [.bottom]) : []
+        return ZStack(alignment: .bottom) {
+            WebViewContainer(webView: tab.webView, topInset: top, bottomInset: bottom)
+                .ignoresSafeArea(.container, edges: webEdges)
                 .opacity(tab.showsHome ? 0 : 1)
             if tab.showsHome {
                 HomePageView(tab: tab, searching: $homeSearching)
+                    .safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: homeSearching ? 0 : bottom) }
+                    .safeAreaInset(edge: .top, spacing: 0) { Color.clear.frame(height: homeSearching ? 0 : top) }
             }
             if addressFocused {
                 SuggestionsView(query: addressText) { pick in submit(pick) }
-                    .background(Color(uiColor: .systemGroupedBackground))
-                    .transition(.opacity)
+                    .safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: bottom) }
+                    .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
+                    .transition(.opacity.combined(with: .move(edge: isTop ? .top : .bottom)))
             }
             if !addressFocused, ExtensionManager.isStoreListing(tab.url) {
                 Button {
                     if let url = tab.url { stage(url: url) }
                 } label: {
-                    Label("Add to Saints", systemImage: "puzzlepiece.extension.fill")
+                    Label("Add to SV Browser", systemImage: "puzzlepiece.extension.fill")
                         .font(.subheadline.weight(.semibold))
                         .padding(.horizontal, 18).padding(.vertical, 11)
                         .background(settings.accent, in: Capsule())
                         .foregroundStyle(.white)
                         .shadow(radius: 8, y: 3)
                 }
-                .padding(.bottom, 14)
+                .padding(.bottom, 14 + bottom)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .id(tab.id)
+        .transition(tabTransition)
     }
 
     private var addressBar: some View {
         AddressBar(tab: tab, text: $addressText, focused: $addressFocused, onSubmit: submit,
-                   onShowExtensions: { sheet = .extensions })
+                   onShowExtensions: { sheet = .extensions },
+                   onSwipeUp: { tab.captureSnapshot { showTabs = true } })
     }
 
     private var collapsedBar: some View {
@@ -344,7 +463,7 @@ struct InstallSheet: View {
                             .font(.title)
                             .foregroundStyle(.white)
                             .frame(width: 58, height: 58)
-                            .background(settings.accent.gradient, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .background(settings.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         VStack(alignment: .leading, spacing: 3) {
                             Text(ext.name).font(.headline)
                             Text("\(ext.kind.label) · v\(ext.version)").font(.subheadline).foregroundStyle(.secondary)
@@ -357,7 +476,7 @@ struct InstallSheet: View {
                         NavigationLink {
                             UBlockView()
                         } label: {
-                            Label("Saints has uBlock Origin built in. It runs natively in WebKit and needs no extension.",
+                            Label("SV Browser has uBlock Origin built in. It runs natively in WebKit and needs no extension.",
                                   systemImage: "shield.fill")
                                 .font(.footnote)
                         }
@@ -383,7 +502,7 @@ struct InstallSheet: View {
                     if !ext.dnrRulesets.isEmpty { Label("Blocks content with native WebKit rules", systemImage: "shield.lefthalf.filled") }
                     if let source = ext.sourceURL { Text(source).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
                 } footer: {
-                    Text("Saints runs extensions in isolated worlds and never sends extension or browsing data anywhere.")
+                    Text("SV Browser runs extensions in isolated worlds and never sends extension or browsing data anywhere.")
                 }
             }
             .navigationTitle("Add Extension")
@@ -441,4 +560,14 @@ enum PermissionText {
         if p.contains("xmlhttp") || p.contains("Request") { return "network" }
         return "checkmark.shield"
     }
+}
+
+private struct TopChromeKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+private struct BottomChromeKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }

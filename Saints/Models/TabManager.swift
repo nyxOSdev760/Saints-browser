@@ -1,6 +1,7 @@
 import Foundation
 import WebKit
 import Combine
+import SwiftUI
 
 final class TabManager: ObservableObject {
     static let shared = TabManager()
@@ -8,6 +9,8 @@ final class TabManager: ObservableObject {
     @Published private(set) var normalTabs: [BrowserTab] = []
     @Published private(set) var privateTabs: [BrowserTab] = []
     @Published private(set) var selectedTab: BrowserTab?
+    /// Direction of the last swipe-driven tab change (+1 next, -1 previous, 0 none) for slide animations.
+    @Published var switchDirection: Int = 0
 
     /// Set when the user opens / downloads an extension package; the UI asks for confirmation.
     @Published var pendingExtensionURL: URL?
@@ -99,13 +102,42 @@ final class TabManager: ObservableObject {
         for tab in tabs(isPrivate: isPrivate) { close(tab) }
     }
 
-    func selectNeighbor(offset: Int) {
-        guard let current = selectedTab else { return }
+    /// Returns false when there is no tab in that direction.
+    @discardableResult
+    func selectNeighbor(offset: Int) -> Bool {
+        guard let current = selectedTab else { return false }
         let list = tabs(isPrivate: current.isPrivate)
-        guard let i = list.firstIndex(where: { $0 === current }) else { return }
+        guard let i = list.firstIndex(where: { $0 === current }) else { return false }
         let next = i + offset
-        guard list.indices.contains(next) else { return }
+        guard list.indices.contains(next) else { return false }
         select(list[next])
+        return true
+    }
+
+    func hasNeighbor(offset: Int) -> Bool {
+        guard let current = selectedTab else { return false }
+        let list = tabs(isPrivate: current.isPrivate)
+        guard let i = list.firstIndex(where: { $0 === current }) else { return false }
+        return list.indices.contains(i + offset)
+    }
+
+    /// Safari-style swipe on the address bar: slide to the neighbouring tab, or open a new tab past the last one.
+    func swipe(offset: Int) {
+        let opensNew = offset > 0 && !hasNeighbor(offset: offset)
+        guard opensNew || hasNeighbor(offset: offset) else { return }
+        switchDirection = offset > 0 ? 1 : -1
+        // Let the outgoing page pick up the direction before it animates away.
+        DispatchQueue.main.async {
+            withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                if opensNew {
+                    _ = self.newTab(isPrivate: self.selectedTab?.isPrivate ?? false)
+                } else {
+                    _ = self.selectNeighbor(offset: offset)
+                }
+            }
+            // Other ways of switching tabs (tab overview, links) shouldn't slide.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { self.switchDirection = 0 }
+        }
     }
 
     /// Re-applies extension scripts, content blockers and privacy scripts to every open tab.

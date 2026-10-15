@@ -34,7 +34,7 @@ struct ExtensionsView: View {
                         Label("Enable Extensions", systemImage: "puzzlepiece.extension.fill")
                     }
                 } footer: {
-                    Text("Install Firefox add-ons (.xpi), Chrome extensions (.crx), userscripts (.user.js) and userstyles. Saints supports the common WebExtension APIs — storage, messaging, tabs, scripting, i18n, alarms and declarativeNetRequest content blocking.")
+                    Text("Install Firefox add-ons (.xpi), Chrome extensions (.crx), userscripts (.user.js) and userstyles. SV Browser supports the common WebExtension APIs — storage, messaging, tabs, scripting, i18n, alarms and declarativeNetRequest content blocking.")
                 }
 
                 Section {
@@ -96,7 +96,7 @@ struct ExtensionsView: View {
                     }
                 }
 
-                Section("Saints Gallery") {
+                Section("Gallery") {
                     ForEach(BuiltInExtensions.gallery) { item in
                         GalleryRow(item: item, installed: manager.extensions.contains { $0.name == item.name }) {
                             install(item)
@@ -197,7 +197,7 @@ private struct GalleryRow: View {
             Image(systemName: item.symbol)
                 .foregroundStyle(.white)
                 .frame(width: 38, height: 38)
-                .background(settings.accent.gradient, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .background(settings.accent, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.name)
                 Text(item.summary).font(.caption).foregroundStyle(.secondary).lineLimit(2)

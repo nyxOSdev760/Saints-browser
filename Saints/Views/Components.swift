@@ -3,18 +3,31 @@ import WebKit
 import UIKit
 
 /// Hosts a tab's existing WKWebView inside SwiftUI without recreating it.
+/// `topInset` / `bottomInset` keep page content clear of floating glass bars.
 struct WebViewContainer: UIViewRepresentable {
     let webView: WKWebView
+    var topInset: CGFloat = 0
+    var bottomInset: CGFloat = 0
 
     func makeUIView(context: Context) -> UIView {
         let container = UIView()
         container.backgroundColor = .systemBackground
         attach(to: container)
+        applyInsets()
         return container
     }
 
     func updateUIView(_ container: UIView, context: Context) {
         if webView.superview !== container { attach(to: container) }
+        applyInsets()
+    }
+
+    private func applyInsets() {
+        let sv = webView.scrollView
+        let insets = UIEdgeInsets(top: topInset, left: 0, bottom: bottomInset, right: 0)
+        guard sv.contentInset != insets else { return }
+        sv.contentInset = insets
+        sv.verticalScrollIndicatorInsets = insets
     }
 
     private func attach(to container: UIView) {
@@ -26,23 +39,65 @@ struct WebViewContainer: UIViewRepresentable {
     }
 }
 
-/// The Saints wordmark: a halo floating over the name.
-struct SaintsLogo: View {
-    var size: CGFloat = 44
-    @EnvironmentObject var settings: BrowserSettings
+/// Frosted glass panel: blurred backdrop, light edge highlight and a soft floating shadow.
+struct GlassSurface<S: InsettableShape>: View {
+    let shape: S
+    var isPrivate = false
+    var shadow = true
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        VStack(spacing: size * 0.08) {
-            Ellipse()
-                .stroke(
-                    LinearGradient(colors: [Color(hex: "#FFE29F"), Color(hex: "#F6B24E")], startPoint: .leading, endPoint: .trailing),
-                    lineWidth: size * 0.09)
-                .frame(width: size * 1.1, height: size * 0.28)
-                .shadow(color: Color(hex: "#F6B24E").opacity(0.7), radius: size * 0.2)
-            Text("Saints")
-                .font(.system(size: size, weight: .bold, design: settings.data.fontDesign.design))
-                .tracking(-0.5)
+        let dark = scheme == .dark || isPrivate
+        shape
+            .fill(.ultraThinMaterial)
+            .overlay(shape.fill(isPrivate ? Color.black.opacity(0.35) : Color.white.opacity(dark ? 0.03 : 0.22)))
+            .overlay(
+                shape.fill(LinearGradient(colors: [Color.white.opacity(dark ? 0.10 : 0.35), .clear],
+                                          startPoint: .top, endPoint: .center))
+            )
+            .overlay(
+                shape.strokeBorder(
+                    LinearGradient(colors: [Color.white.opacity(dark ? 0.32 : 0.85),
+                                            Color.white.opacity(dark ? 0.06 : 0.25),
+                                            Color.white.opacity(dark ? 0.14 : 0.45)],
+                                   startPoint: .top, endPoint: .bottom),
+                    lineWidth: 0.8)
+            )
+            .shadow(color: .black.opacity(shadow ? (dark ? 0.45 : 0.14) : 0), radius: 16, y: 6)
+    }
+}
+
+/// Springy press feedback; dims when disabled.
+struct PressableStyle: ButtonStyle {
+    var scale: CGFloat = 0.9
+
+    func makeBody(configuration: Configuration) -> some View {
+        Pressable(configuration: configuration, scale: scale)
+    }
+
+    private struct Pressable: View {
+        let configuration: ButtonStyleConfiguration
+        let scale: CGFloat
+        @Environment(\.isEnabled) private var enabled
+
+        var body: some View {
+            configuration.label
+                .scaleEffect(configuration.isPressed ? scale : 1)
+                .opacity(enabled ? (configuration.isPressed ? 0.75 : 1) : 0.35)
+                .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
         }
+    }
+}
+
+/// Measures a view's height (used to inset page content under floating bars).
+struct HeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+extension View {
+    func measureHeight(_ key: HeightKey.Type = HeightKey.self) -> some View {
+        background(GeometryReader { Color.clear.preference(key: key, value: $0.size.height) })
     }
 }
 
@@ -113,8 +168,13 @@ struct FieldBackground: View {
     var isPrivate: Bool
 
     var body: some View {
-        RoundedRectangle(cornerRadius: settings.data.barCornerRadius, style: .continuous)
-            .fill(isPrivate ? Color.white.opacity(0.12) : Color(uiColor: .tertiarySystemFill))
+        if settings.data.barMaterial == .glass {
+            GlassSurface(shape: RoundedRectangle(cornerRadius: min(settings.data.barCornerRadius + 8, 23), style: .continuous),
+                         isPrivate: isPrivate)
+        } else {
+            RoundedRectangle(cornerRadius: settings.data.barCornerRadius, style: .continuous)
+                .fill(isPrivate ? Color.white.opacity(0.12) : Color(uiColor: .tertiarySystemFill))
+        }
     }
 }
 

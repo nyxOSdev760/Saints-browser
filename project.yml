@@ -20,7 +20,7 @@ targets:
     info:
       path: Saints/Info.plist
       properties:
-        CFBundleDisplayName: Saints
+        CFBundleDisplayName: SV Browser
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen:

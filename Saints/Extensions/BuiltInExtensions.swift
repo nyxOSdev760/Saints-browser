@@ -147,7 +147,7 @@ enum BuiltInExtensions {
         })();
         """),
         GalleryItem(id: "google-to-ddg", name: "Google → DuckDuckGo",
-                    summary: "If a link sends you to a Google search, Saints bounces it to DuckDuckGo.",
+                    summary: "If a link sends you to a Google search, SV Browser sends it to DuckDuckGo.",
                     symbol: "arrow.uturn.right", kind: .userScript, source: """
         // ==UserScript==
         // @name         Google → DuckDuckGo

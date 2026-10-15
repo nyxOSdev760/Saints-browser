@@ -248,11 +248,10 @@ final class BrowserTab: NSObject, ObservableObject, Identifiable {
         body { font: -apple-system-body; font-family: -apple-system, system-ui; margin: 0; min-height: 100vh; display: flex;
                align-items: center; justify-content: center; background: Canvas; color: CanvasText; }
         main { max-width: 420px; padding: 32px; text-align: center; }
-        .halo { width: 64px; height: 18px; border: 4px solid #F6B24E; border-radius: 50%; margin: 0 auto 20px; }
         h1 { font-size: 22px; margin: 0 0 8px; } p { opacity: .75; line-height: 1.4; } .warn { opacity: .9; }
-        .btn { display: block; margin: 12px auto 0; padding: 12px 18px; border-radius: 12px; background: #7F53AC; color: white;
+        .btn { display: block; margin: 12px auto 0; padding: 12px 18px; border-radius: 12px; background: #0A84FF; color: white;
                text-decoration: none; font-weight: 600; } .secondary { background: rgba(127,127,127,.2); color: inherit; }
-        </style></head><body><main><div class="halo"></div>
+        </style></head><body><main>
         <h1>Can’t open this page</h1><p><b>\(host)</b></p><p>\(message)</p>
         <a class="btn" href="\(failingURL.absoluteString)">Try Again</a>
         \(fallback)

@@ -213,11 +213,6 @@ struct HomePreview: View {
         ZStack {
             WallpaperView(preview: true)
             VStack(spacing: 12) {
-                if settings.data.showLogo {
-                    SaintsLogo(size: 20)
-                        .foregroundStyle(settings.data.wallpaper == .none && settings.data.homeTextStyle == .auto
-                                         ? Color.primary : (lightInk ? Color.white : Color.black))
-                }
                 HStack {
                     Image(systemName: "magnifyingglass").font(.caption)
                     Text("Search or enter address").font(.caption)

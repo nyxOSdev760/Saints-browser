@@ -60,6 +60,7 @@ struct HomePageView: View {
     @State private var query = ""
     @State private var remote: [String] = []
     @FocusState private var fieldFocused: Bool
+    @State private var appeared = false
 
     private var onWallpaper: Bool { tab.isPrivate || settings.data.wallpaper != .none }
     /// White text on dark wallpapers, dark text on light ones, unless the user picked a style.
@@ -130,7 +131,8 @@ struct HomePageView: View {
             if !focused { query = "" }
         }
         .onChange(of: query) { fetchSuggestions($0) }
-        .onDisappear { searching = false }
+        .onDisappear { searching = false; appeared = false }
+        .onAppear { appeared = true }
         .sheet(item: $editingBookmark) { BookmarkEditor(bookmark: $0) }
     }
 
@@ -138,9 +140,6 @@ struct HomePageView: View {
 
     private var header: some View {
         VStack(spacing: 10) {
-            if settings.data.showLogo {
-                SaintsLogo(size: 40).foregroundStyle(ink)
-            }
             if settings.data.showGreeting {
                 Text(greeting)
                     .font(.headline)
@@ -191,7 +190,9 @@ struct HomePageView: View {
     private var fieldRadius: CGFloat { min(26, settings.data.searchFieldRoundness) }
 
     @ViewBuilder private var fieldBackground: some View {
-        if onWallpaper {
+        if settings.data.barMaterial == .glass {
+            GlassSurface(shape: RoundedRectangle(cornerRadius: fieldRadius, style: .continuous), isPrivate: tab.isPrivate, shadow: false)
+        } else if onWallpaper {
             RoundedRectangle(cornerRadius: fieldRadius, style: .continuous).fill(.regularMaterial)
         } else {
             RoundedRectangle(cornerRadius: fieldRadius, style: .continuous).fill(Color(uiColor: .secondarySystemBackground))
@@ -312,7 +313,7 @@ struct HomePageView: View {
         return VStack(alignment: .leading, spacing: 14) {
             Text("Favorites").font(.title3.weight(.bold)).foregroundStyle(ink)
             LazyVGrid(columns: columns, spacing: 18) {
-                ForEach(library.favorites) { b in
+                ForEach(Array(library.favorites.enumerated()), id: \.element.id) { index, b in
                     Button {
                         if let url = URL(string: b.url) { settings.haptic(); tab.load(url) }
                     } label: {
@@ -337,6 +338,10 @@ struct HomePageView: View {
                         Button { editingBookmark = b } label: { Label("Edit", systemImage: "pencil") }
                         Button(role: .destructive) { library.remove(b) } label: { Label("Remove", systemImage: "trash") }
                     }
+                    .opacity(appeared ? 1 : 0)
+                    .offset(y: appeared ? 0 : 14)
+                    .scaleEffect(appeared ? 1 : 0.92)
+                    .animation(.spring(response: 0.45, dampingFraction: 0.8).delay(Double(index) * 0.035), value: appeared)
                 }
             }
         }

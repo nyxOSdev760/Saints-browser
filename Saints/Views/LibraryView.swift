@@ -130,7 +130,7 @@ struct DownloadsView: View {
         NavigationStack {
             List {
                 if downloads.files.isEmpty {
-                    Text("Downloaded files appear here and in the Files app under On My iPhone › Saints.")
+                    Text("Downloaded files appear here and in the Files app under On My iPhone › SV Browser.")
                         .foregroundStyle(.secondary)
                 }
                 ForEach(downloads.files, id: \.self) { file in

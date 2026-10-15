@@ -34,7 +34,7 @@ enum BarMaterial: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .glass: return "Glass"
+        case .glass: return "Floating Glass"
         case .solid: return "Solid"
         case .tinted: return "Accent Tint"
         }
@@ -133,7 +133,7 @@ enum DarkWebMode: String, Codable, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .off: return "Off"
-        case .followApp: return "When Saints Is Dark"
+        case .followApp: return "When SV Browser Is Dark"
         case .always: return "Always"
         }
     }
@@ -253,7 +253,7 @@ enum ToolbarAction: String, Codable, CaseIterable, Identifiable {
 struct SettingsData: Codable, Equatable {
     // Appearance
     var theme: ThemeMode = .system
-    var accentHex: String = "#7F53AC"
+    var accentHex: String = "#0A84FF"
     var fontDesign: AppFontDesign = .rounded
     var barPosition: BarPosition = .bottom
     var barMaterial: BarMaterial = .glass
@@ -284,14 +284,14 @@ struct SettingsData: Codable, Equatable {
     // Home page
     var wallpaper: WallpaperStyle = .none
     /// Bumped when the home page is redesigned; older saves are migrated off the old default wallpaper.
-    var homeVersion: Int = 2
+    var homeVersion: Int = 3
     var wallpaperSolidHex: String = "#1C1C1E"
     var wallpaperDim: Double = 0.15
     var wallpaperStamp: Double = 0
     var wallpaperPhotoID: String = ""
     var wallpaperBlur: Double = 0
     var homeTextStyle: HomeTextStyle = .auto
-    var showGreeting: Bool = true
+    var showGreeting: Bool = false
     var showRecent: Bool = true
     var favoriteShape: TileShape = .rounded
     var searchFieldRoundness: Double = 20
@@ -368,8 +368,9 @@ struct SettingsData: Codable, Equatable {
         homeVersion = v(.homeVersion, 1)
         if homeVersion < 2 {
             if wallpaper == .halo { wallpaper = .none }
-            homeVersion = 2
         }
+        let migrateToV3 = homeVersion < 3
+        homeVersion = 3
         wallpaperSolidHex = v(.wallpaperSolidHex, wallpaperSolidHex)
         wallpaperDim = v(.wallpaperDim, wallpaperDim)
         wallpaperStamp = v(.wallpaperStamp, wallpaperStamp)
@@ -407,6 +408,12 @@ struct SettingsData: Codable, Equatable {
         customUserAgent = v(.customUserAgent, customUserAgent)
         extensionsEnabled = v(.extensionsEnabled, extensionsEnabled)
         interceptExtensionDownloads = v(.interceptExtensionDownloads, interceptExtensionDownloads)
+        if migrateToV3 {
+            // SV Browser rename: plain blue accent, floating glass bars, no greeting by default.
+            if accentHex == "#7F53AC" { accentHex = "#0A84FF" }
+            showGreeting = false
+            barMaterial = .glass
+        }
     }
 }
 
@@ -505,7 +512,7 @@ struct ThemePreset: Identifiable {
     var id: String { name }
 
     static let all: [ThemePreset] = [
-        ThemePreset(name: "Saints", theme: .system, accent: "#7F53AC", material: .glass, font: .rounded, radius: 14, wallpaper: .none),
+        ThemePreset(name: "Default", theme: .system, accent: "#0A84FF", material: .glass, font: .rounded, radius: 14, wallpaper: .none),
         ThemePreset(name: "Midnight", theme: .black, accent: "#0A84FF", material: .solid, font: .standard, radius: 12, wallpaper: .midnight),
         ThemePreset(name: "Ocean", theme: .dark, accent: "#64D2FF", material: .tinted, font: .rounded, radius: 18, wallpaper: .ocean),
         ThemePreset(name: "Forest", theme: .dark, accent: "#30D158", material: .tinted, font: .rounded, radius: 16, wallpaper: .forest),

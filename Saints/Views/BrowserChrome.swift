@@ -9,12 +9,14 @@ struct AddressBar: View {
     var focused: FocusState<Bool>.Binding
     var onSubmit: (String) -> Void
     var onShowExtensions: () -> Void
+    var onSwipeUp: () -> Void = {}
 
     @EnvironmentObject var settings: BrowserSettings
     @EnvironmentObject var extensions: ExtensionManager
     @EnvironmentObject var tabs: TabManager
     @ObservedObject private var ublock = UBlockEngine.shared
     @State private var dragOffset: CGFloat = 0
+    @State private var dragLift: CGFloat = 0
 
     private var isEditing: Bool { focused.wrappedValue }
     private var height: CGFloat { settings.data.compactBars ? 38 : 46 }
@@ -95,7 +97,9 @@ struct AddressBar: View {
                     .padding(.horizontal, settings.data.barCornerRadius / 2)
                 }
             }
-            .offset(x: dragOffset)
+            .offset(x: dragOffset, y: min(0, dragLift))
+            .scaleEffect(1 - min(abs(dragOffset), 120) / 1200)
+            .overlay(alignment: .trailing) { newTabHint }
             .gesture(swipeGesture, including: isEditing || !settings.data.swipeAddressBarToSwitchTabs ? .subviews : .all)
 
             if isEditing {
@@ -114,15 +118,57 @@ struct AddressBar: View {
         focused.wrappedValue = true
     }
 
+    /// Past the last tab, a "+" bubble grows as you drag; releasing opens a new tab.
+    @ViewBuilder private var newTabHint: some View {
+        if dragOffset < -12 && !tabs.hasNeighbor(offset: 1) {
+            let progress = min(1, -dragOffset / 90)
+            HStack(spacing: 4) {
+                Image(systemName: "plus")
+                Text("New Tab").font(.caption.weight(.semibold))
+            }
+            .font(.footnote.weight(.bold))
+            .foregroundStyle(progress >= 1 ? Color.white : settings.accent)
+            .padding(.horizontal, 10)
+            .frame(height: 32)
+            .background(Capsule().fill(progress >= 1 ? settings.accent : settings.accent.opacity(0.15)))
+            .scaleEffect(0.6 + 0.4 * progress)
+            .opacity(Double(progress))
+            .offset(x: 4)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: progress >= 1)
+            .allowsHitTesting(false)
+        }
+    }
+
     private var swipeGesture: some Gesture {
-        DragGesture(minimumDistance: 20)
+        DragGesture(minimumDistance: 16)
             .onChanged { v in
-                if abs(v.translation.width) > abs(v.translation.height) { dragOffset = v.translation.width / 3 }
+                let dx = v.translation.width, dy = v.translation.height
+                if abs(dx) > abs(dy) {
+                    // Rubber-band once there's nowhere to go.
+                    let blocked = dx > 0 ? !tabs.hasNeighbor(offset: -1) : false
+                    dragOffset = blocked ? dx / 6 : dx / 1.6
+                    dragLift = 0
+                } else if dy < 0 {
+                    dragLift = dy / 3
+                    dragOffset = 0
+                }
             }
             .onEnded { v in
-                withAnimation(.spring()) { dragOffset = 0 }
-                if v.translation.width < -80 { tabs.selectNeighbor(offset: 1); settings.haptic() }
-                else if v.translation.width > 80 { tabs.selectNeighbor(offset: -1); settings.haptic() }
+                let dx = v.translation.width, dy = v.translation.height
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                    dragOffset = 0
+                    dragLift = 0
+                }
+                if dy < -50 && abs(dx) < 60 {
+                    settings.haptic(.medium)
+                    onSwipeUp()
+                } else if dx < -70 {
+                    settings.haptic(tabs.hasNeighbor(offset: 1) ? .light : .medium)
+                    tabs.swipe(offset: 1)
+                } else if dx > 70 && tabs.hasNeighbor(offset: -1) {
+                    settings.haptic()
+                    tabs.swipe(offset: -1)
+                }
             }
     }
 
@@ -206,6 +252,7 @@ struct BrowserToolbar: View {
                     tabsButton
                 } else {
                     Button { settings.haptic(); perform(item) } label: { icon(for: item) }
+                        .buttonStyle(PressableStyle())
                         .disabled(isDisabled(item))
                         .frame(maxWidth: .infinity)
                 }
@@ -255,9 +302,12 @@ struct BrowserToolbar: View {
                         .frame(width: 22, height: 22)
                     Text("\(tabs.tabs(isPrivate: tab.isPrivate).count)")
                         .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .contentTransition(.numericText())
+                        .animation(.spring(response: 0.3), value: tabs.tabs(isPrivate: tab.isPrivate).count)
                 },
                 "Tabs")
         }
+        .buttonStyle(PressableStyle())
         .frame(maxWidth: .infinity)
         .contextMenu {
             Button { tabs.newTab(isPrivate: false) } label: { Label("New Tab", systemImage: "plus.square.on.square") }

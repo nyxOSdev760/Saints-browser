@@ -84,7 +84,7 @@ enum ExtensionRuntimeJS {
     getURL,
     getManifest: () => CFG.manifest,
     getPlatformInfo: cb(() => Promise.resolve({ os: 'ios', arch: 'arm64', nacl_arch: 'arm' })),
-    getBrowserInfo: cb(() => Promise.resolve({ name: 'Saints', vendor: 'Saints', version: CFG.browserVersion, buildID: '1' })),
+    getBrowserInfo: cb(() => Promise.resolve({ name: 'SV Browser', vendor: 'SV Browser', version: CFG.browserVersion, buildID: '1' })),
     sendMessage: cb(function (...args) {
       if (args.length >= 2 && typeof args[0] === 'string' && args[0] === CFG.id) args.shift();
       return post('runtime.sendMessage', { message: args[0] });
@@ -294,7 +294,7 @@ enum ExtensionRuntimeJS {
     let values = {};
     const ready = post('storage.get', { area: 'gm', keys: null }).then((v) => { values = v || {}; }, () => {});
     globalThis.__saintsGMReady = ready;
-    const GM_info = { script: { name: CFG.name, version: CFG.version, description: CFG.description, namespace: '' }, scriptHandler: 'Saints', version: CFG.browserVersion, platform: { os: 'ios' } };
+    const GM_info = { script: { name: CFG.name, version: CFG.version, description: CFG.description, namespace: '' }, scriptHandler: 'SV Browser', version: CFG.browserVersion, platform: { os: 'ios' } };
     const GM_getValue = (k, d) => (Object.prototype.hasOwnProperty.call(values, k) ? values[k] : d);
     const GM_setValue = (k, v) => { values[k] = v; post('storage.set', { area: 'gm', items: { [k]: v } }); };
     const GM_deleteValue = (k) => { delete values[k]; post('storage.remove', { area: 'gm', keys: k }); };

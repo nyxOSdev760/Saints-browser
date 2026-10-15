@@ -73,7 +73,7 @@ struct UBlockView: View {
             }
 
             Section {
-                Text("Lists are downloaded from github.com/uBlockOrigin/uBOL-home. Saints never sends anything about the pages you visit; blocking happens on your device.")
+                Text("Lists are downloaded from github.com/uBlockOrigin/uBOL-home. SV Browser never sends anything about the pages you visit; blocking happens on your device.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 Text("uBlock Origin and uBO Lite are © Raymond Hill and contributors, GPLv3. Filter lists belong to their respective authors.")
@@ -152,6 +152,6 @@ struct UBlockBadge: View {
                     .offset(y: -size * 0.02)
             )
             .frame(width: size, height: size)
-            .background(Color(hex: "#800000").gradient, in: RoundedRectangle(cornerRadius: size * 0.24, style: .continuous))
+            .background(Color(hex: "#800000"), in: RoundedRectangle(cornerRadius: size * 0.24, style: .continuous))
     }
 }

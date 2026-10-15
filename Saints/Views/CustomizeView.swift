@@ -7,7 +7,7 @@ struct CustomizeView: View {
     @EnvironmentObject var settings: BrowserSettings
     @Environment(\.dismiss) private var dismiss
 
-    private let accents = ["#7F53AC", "#0A84FF", "#30D158", "#FF9F0A", "#FF375F", "#BF5AF2", "#64D2FF", "#FFD60A", "#AC8E68", "#8E8E93"]
+    private let accents = ["#0A84FF", "#30D158", "#7F53AC", "#FF9F0A", "#FF375F", "#BF5AF2", "#64D2FF", "#FFD60A", "#AC8E68", "#8E8E93"]
 
     var body: some View {
         Form {
@@ -92,7 +92,7 @@ struct CustomizeView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: 28, height: 28)
-                .background(color.gradient, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .background(color, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
     }
 }

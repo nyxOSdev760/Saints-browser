@@ -11,7 +11,7 @@ struct SettingsView: View {
             List {
                 Section {
                     HStack(spacing: 14) {
-                        SaintsLogo(size: 26)
+                        Text("SV Browser").font(.title3.weight(.bold))
                         Spacer()
                         VStack(alignment: .trailing, spacing: 2) {
                             Text("No tracking. No telemetry.").font(.caption.weight(.semibold))
@@ -35,7 +35,7 @@ struct SettingsView: View {
                     link("Extensions", "puzzlepiece.extension.fill", .cyan) { ExtensionsSettingsLink() }
                 }
                 Section {
-                    link("About Saints", "info.circle.fill", .gray) { AboutView() }
+                    link("About SV Browser", "info.circle.fill", .gray) { AboutView() }
                 }
             }
             .navigationTitle("Settings")
@@ -55,7 +55,7 @@ struct SettingsView: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(width: 28, height: 28)
-                    .background(color.gradient, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .background(color, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             }
         }
     }
@@ -65,7 +65,7 @@ struct SettingsView: View {
 
 struct AppearanceSettings: View {
     @EnvironmentObject var settings: BrowserSettings
-    private let presets = ["#7F53AC", "#0A84FF", "#30D158", "#FF9F0A", "#FF375F", "#BF5AF2", "#64D2FF", "#FFD60A", "#AC8E68", "#8E8E93"]
+    private let presets = ["#0A84FF", "#30D158", "#7F53AC", "#FF9F0A", "#FF375F", "#BF5AF2", "#64D2FF", "#FFD60A", "#AC8E68", "#8E8E93"]
 
     var body: some View {
         Form {
@@ -246,7 +246,6 @@ struct HomeSettings: View {
                 }
             }
             Section("Header") {
-                Toggle("Show Saints Logo", isOn: $settings.data.showLogo)
                 Toggle("Show Greeting", isOn: $settings.data.showGreeting)
                 if settings.data.showGreeting {
                     TextField("Greeting (empty = time of day)", text: $settings.data.greeting)
@@ -291,7 +290,7 @@ struct SearchSettings: View {
                 .pickerStyle(.inline)
                 .labelsHidden()
             } header: { Text("DuckDuckGo Version") } footer: {
-                Text("Saints only uses DuckDuckGo. Lite and HTML versions are faster and work without JavaScript.")
+                Text("SV Browser only uses DuckDuckGo. Lite and HTML versions are faster and work without JavaScript.")
             }
             Section("Results") {
                 Picker("Region", selection: $settings.data.searchRegion) {
@@ -342,9 +341,9 @@ struct PrivacySettings: View {
                 Button("Reset Privacy Stats") { PrivacyStats.shared.reset() }
             }
             Section {
-                Label("Saints contains no analytics, crash reporters, ad SDKs or remote config.", systemImage: "checkmark.shield.fill")
+                Label("SV Browser contains no analytics, crash reporters, ad SDKs or remote config.", systemImage: "checkmark.shield.fill")
                 Label("Safe Browsing lookups are disabled so no URLs are sent to third parties.", systemImage: "checkmark.shield.fill")
-                Label("Saints looks like Safari to websites to reduce fingerprinting.", systemImage: "checkmark.shield.fill")
+                Label("SV Browser looks like Safari to websites to reduce fingerprinting.", systemImage: "checkmark.shield.fill")
             } header: { Text("Telemetry") }
             .font(.footnote)
         }
@@ -380,7 +379,7 @@ struct ContentSettings: View {
             Section {
                 Toggle("Web Inspector", isOn: $settings.data.webInspector)
             } header: { Text("Developer") } footer: {
-                Text("Lets Safari on a Mac inspect pages and extensions in Saints.")
+                Text("Lets Safari on a Mac inspect pages and extensions in SV Browser.")
             }
         }
         .navigationTitle("Website Content")
@@ -396,7 +395,7 @@ struct ExtensionsSettingsLink: View {
                 Toggle("Enable Extensions", isOn: $settings.data.extensionsEnabled)
                 Toggle("Offer to Install Extension Links", isOn: $settings.data.interceptExtensionDownloads)
             } footer: {
-                Text("When you open a .xpi, .crx, .user.js or .user.css link, or visit an add-on store page, Saints offers to install it.")
+                Text("When you open a .xpi, .crx, .user.js or .user.css link, or visit an add-on store page, SV Browser offers to install it.")
             }
             Section {
                 Button("Manage Extensions") { showManager = true }
@@ -423,14 +422,14 @@ struct AboutView: View {
         List {
             Section {
                 VStack(spacing: 10) {
-                    SaintsLogo(size: 40)
+                    Text("SV Browser").font(.title2.weight(.bold))
                     Text("Version \(version)").font(.footnote).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
             }
             Section("Our Promise") {
-                Text("Saints doesn't collect anything. There are no accounts, no analytics, no crash reports, no ad identifiers and no servers of our own. Your bookmarks, history, extensions and settings live only on this device.")
+                Text("SV Browser doesn't collect anything. There are no accounts, no analytics, no crash reports, no ad identifiers and no servers of our own. Your bookmarks, history, extensions and settings live only on this device.")
                     .font(.subheadline)
             }
             Section("Built With") {
@@ -443,7 +442,7 @@ struct AboutView: View {
             }
         }
         .navigationTitle("About")
-        .confirmationDialog("Reset all Saints settings to defaults?", isPresented: $confirmReset, titleVisibility: .visible) {
+        .confirmationDialog("Reset all SV Browser settings to defaults?", isPresented: $confirmReset, titleVisibility: .visible) {
             Button("Reset", role: .destructive) { settings.reset() }
         }
     }
