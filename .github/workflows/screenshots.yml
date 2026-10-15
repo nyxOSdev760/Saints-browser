@@ -60,6 +60,8 @@ jobs:
           shot 5-menu     dark  menu 15
           shot 6-customize light customize 8
           shot 7-wallpaper dark wallpaper 8
+          shot 8-useragent light ua 8
+          shot 9-detect   light detect 15
           rm shots/0-warmup.png
           ls -l shots
 

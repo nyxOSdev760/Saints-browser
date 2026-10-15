@@ -38,6 +38,12 @@ enum ScreenshotDriver {
             tabs.selectedTab?.load(URL(string: "https://en.wikipedia.org/wiki/Web_browser")!)
             await wait(6)
             showSheet(.menu)
+        case "ua":
+            let html = "<meta name=viewport content='width=device-width'><body style='font:17px -apple-system;padding:24px'>"
+                + "<h3>User agent</h3><p id=u></p><script>u.textContent=navigator.userAgent</script>"
+            tabs.selectedTab?.load(URL(string: "data:text/html," + (html.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""))!)
+        case "detect":
+            tabs.selectedTab?.load(URL(string: "https://www.whatismybrowser.com/")!)
         case "customize":
             showSheet(.customize)
         case "wallpaper":
