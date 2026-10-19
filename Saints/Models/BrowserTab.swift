@@ -194,6 +194,8 @@ final class BrowserTab: NSObject, ObservableObject, Identifiable {
     @Published var canGoBack = false
     @Published var canGoForward = false
     @Published var hasOnlySecureContent = false
+    @Published var cameraActive = false
+    @Published var microphoneActive = false
     @Published var snapshot: UIImage?
     @Published var chromeCollapsed = false
     @Published var desktopMode: Bool
@@ -250,6 +252,8 @@ final class BrowserTab: NSObject, ObservableObject, Identifiable {
             webView.observe(\.canGoBack, options: [.new]) { [weak self] wv, _ in self?.canGoBack = wv.canGoBack },
             webView.observe(\.canGoForward, options: [.new]) { [weak self] wv, _ in self?.canGoForward = wv.canGoForward },
             webView.observe(\.hasOnlySecureContent, options: [.new]) { [weak self] wv, _ in self?.hasOnlySecureContent = wv.hasOnlySecureContent },
+            webView.observe(\.cameraCaptureState, options: [.new]) { [weak self] wv, _ in self?.cameraActive = wv.cameraCaptureState == .active },
+            webView.observe(\.microphoneCaptureState, options: [.new]) { [weak self] wv, _ in self?.microphoneActive = wv.microphoneCaptureState == .active },
             webView.scrollView.observe(\.contentOffset, options: [.new]) { [weak self] sv, _ in self?.scrolled(sv) }
         ]
     }
@@ -513,6 +517,67 @@ extension BrowserTab: WKUIDelegate {
         let tab = TabManager.shared.newTab(isPrivate: isPrivate, select: !background, configuration: configuration)
         if background { ToastCenter.shared.show("Opened in a new tab", symbol: "plus.square.on.square") }
         return tab.webView
+    }
+
+    // MARK: Camera, microphone & motion permissions
+
+    /// Answers remembered for this app session ("host|kind" → allowed). Private tabs keep their own.
+    private static var mediaDecisions: [String: Bool] = [:]
+    private static var privateMediaDecisions: [String: Bool] = [:]
+
+    func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin,
+                 initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType,
+                 decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+        let what: String
+        switch type {
+        case .camera: what = "camera"
+        case .microphone: what = "microphone"
+        case .cameraAndMicrophone: what = "camera and microphone"
+        @unknown default: what = "camera or microphone"
+        }
+        askPermission(origin: origin, kind: what, decisionHandler: decisionHandler)
+    }
+
+    func webView(_ webView: WKWebView, requestDeviceOrientationAndMotionPermissionFor origin: WKSecurityOrigin,
+                 initiatedByFrame frame: WKFrameInfo, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+        askPermission(origin: origin, kind: "motion and orientation sensors", decisionHandler: decisionHandler)
+    }
+
+    private func askPermission(origin: WKSecurityOrigin, kind: String,
+                               decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+        // Never on insecure pages: anyone on the network could tamper with an http page.
+        guard origin.protocol == "https" || origin.host == "localhost" else {
+            decisionHandler(.deny)
+            ToastCenter.shared.show("Blocked \(kind) on an insecure (http) page", symbol: "lock.slash")
+            return
+        }
+        let key = "\(origin.host)|\(kind)"
+        if let remembered = isPrivate ? Self.privateMediaDecisions[key] : Self.mediaDecisions[key] {
+            decisionHandler(remembered ? .grant : .deny)
+            return
+        }
+        let alert = UIAlertController(title: "Allow “\(origin.host)” to use your \(kind)?",
+                                      message: "You can stop it any time from the address bar.",
+                                      preferredStyle: .alert)
+        let remember: (Bool) -> Void = { [weak self] allowed in
+            guard let self else { return }
+            if self.isPrivate { Self.privateMediaDecisions[key] = allowed } else { Self.mediaDecisions[key] = allowed }
+        }
+        alert.addAction(UIAlertAction(title: "Don’t Allow", style: .cancel) { _ in
+            remember(false)
+            decisionHandler(.deny)
+        })
+        alert.addAction(UIAlertAction(title: "Allow", style: .default) { _ in
+            remember(true)
+            decisionHandler(.grant)
+        })
+        present(alert) { decisionHandler(.deny) }
+    }
+
+    /// Address-bar "stop" button for an active camera / microphone.
+    func stopCapture() {
+        webView.setCameraCaptureState(.none, completionHandler: nil)
+        webView.setMicrophoneCaptureState(.none, completionHandler: nil)
     }
 
     func webViewDidClose(_ webView: WKWebView) {

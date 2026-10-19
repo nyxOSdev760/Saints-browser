@@ -69,6 +69,7 @@ struct AddressBar: View {
                             .buttonStyle(.plain)
                         }
                     } else if tab.url != nil {
+                        captureIndicator
                         reloadButton
                         pageMenu
                     }
@@ -104,6 +105,26 @@ struct AddressBar: View {
             }
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: isEditing)
+    }
+
+    /// Shown while the page is using the camera or microphone; tap to turn them off.
+    @ViewBuilder private var captureIndicator: some View {
+        if tab.cameraActive || tab.microphoneActive {
+            Button {
+                settings.haptic(.medium)
+                tab.stopCapture()
+                ToastCenter.shared.show(tab.cameraActive ? "Camera turned off" : "Microphone turned off", symbol: "video.slash")
+            } label: {
+                Image(systemName: tab.cameraActive ? "video.fill" : "mic.fill")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 28, height: 28)
+                    .background(Circle().fill(tab.cameraActive ? Color.red : Color.orange))
+            }
+            .buttonStyle(PressableStyle())
+            .accessibilityLabel("Stop camera and microphone")
+            .transition(.scale.combined(with: .opacity))
+        }
     }
 
     /// Magnifying glass like the start-page field; a lock / warning once a page is open.

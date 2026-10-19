@@ -38,6 +38,12 @@ targets:
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: false
         ITSAppUsesNonExemptEncryption: false
+        # iOS terminates the app if a website requests one of these without a usage description.
+        NSCameraUsageDescription: Websites you allow can use the camera, for example to scan a code or join a video call. SV Browser asks you first, every time a new site wants it.
+        NSMicrophoneUsageDescription: Websites you allow can use the microphone, for example for calls or voice search. SV Browser asks you first.
+        NSPhotoLibraryUsageDescription: Lets you choose photos to upload to websites.
+        NSPhotoLibraryAddUsageDescription: Lets you save images from websites to your photo library.
+        NSLocationWhenInUseUsageDescription: Websites you allow can see your location, for example for maps. SV Browser asks you first.
         NSAppTransportSecurity:
           NSAllowsArbitraryLoadsInWebContent: true
         CFBundleURLTypes:
